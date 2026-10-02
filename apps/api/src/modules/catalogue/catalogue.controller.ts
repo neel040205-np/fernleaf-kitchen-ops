@@ -36,8 +36,22 @@ export class CatalogueController {
   }
 
   @Get('dishes')
-  async getDishes(@Query('includeInactive') includeInactive?: string) {
-    return this.catalogueService.getDishes(includeInactive !== 'false');
+  async getDishes(
+    @Query('search') search?: string,
+    @Query('categoryId') categoryId?: string,
+    @Query('stationId') stationId?: string,
+    @Query('includeInactive') includeInactive?: string,
+    @Query('page') page?: string,
+    @Query('limit') limit?: string,
+  ) {
+    return this.catalogueService.getDishes({
+      search,
+      categoryId,
+      stationId,
+      includeInactive: includeInactive !== 'false',
+      page: page ? parseInt(page, 10) : 1,
+      limit: limit ? parseInt(limit, 10) : 50,
+    });
   }
 
   @Get('dishes/:id')
@@ -72,5 +86,23 @@ export class CatalogueController {
   @Post('option-groups')
   async createOptionGroup(@Body() body: any) {
     return this.catalogueService.createOptionGroup(body);
+  }
+
+  @Roles(Role.ADMIN)
+  @Put('option-groups/:id')
+  async updateOptionGroup(@Param('id') id: string, @Body() body: any) {
+    return this.catalogueService.updateOptionGroup(id, body);
+  }
+
+  @Roles(Role.ADMIN)
+  @Post('hiding/category')
+  async toggleCompanyCategoryHiding(@Body() body: { companyId: string; categoryId: string }) {
+    return this.catalogueService.toggleCompanyCategoryHiding(body.companyId, body.categoryId);
+  }
+
+  @Roles(Role.ADMIN)
+  @Post('hiding/dish')
+  async toggleCompanyDishHiding(@Body() body: { companyId: string; dishId: string }) {
+    return this.catalogueService.toggleCompanyDishHiding(body.companyId, body.dishId);
   }
 }

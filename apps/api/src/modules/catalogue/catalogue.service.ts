@@ -26,6 +26,9 @@ export class CatalogueService {
   }
 
   async createCategory(data: { name: string; displayOrder?: number; isSecret?: boolean }) {
+    const existing = await this.prisma.category.findUnique({ where: { name: data.name } });
+    if (existing) throw new BadRequestException(`Category "${data.name}" already exists`);
+
     return this.prisma.category.create({
       data: {
         name: data.name,
@@ -36,43 +39,88 @@ export class CatalogueService {
   }
 
   async updateCategory(id: string, data: { name?: string; displayOrder?: number; isActive?: boolean; isSecret?: boolean }) {
+    const cat = await this.prisma.category.findUnique({ where: { id } });
+    if (!cat) throw new NotFoundException('Category not found');
+
     return this.prisma.category.update({
       where: { id },
       data,
     });
   }
 
-  // Dishes
-  async getDishes(includeInactive = true) {
-    const where = includeInactive ? {} : { isActive: true };
-    const dishes = await this.prisma.dish.findMany({
-      where,
-      include: {
-        category: true,
-        station: true,
-        optionGroups: {
-          include: {
-            optionGroup: {
-              include: {
-                options: {
-                  include: { portionPrices: true },
+  // Dishes with Search, Filtering & Server-side Pagination
+  async getDishes(options?: {
+    search?: string;
+    categoryId?: string;
+    stationId?: string;
+    includeInactive?: boolean;
+    page?: number;
+    limit?: number;
+  }) {
+    const page = options?.page || 1;
+    const limit = options?.limit || 50;
+    const skip = (page - 1) * limit;
+
+    const where: any = {};
+
+    if (options?.includeInactive === false) {
+      where.isActive = true;
+    }
+    if (options?.categoryId) {
+      where.categoryId = options.categoryId;
+    }
+    if (options?.stationId) {
+      where.stationId = options.stationId;
+    }
+    if (options?.search) {
+      where.OR = [
+        { name: { contains: options.search } },
+        { description: { contains: options.search } },
+        { sku: { contains: options.search } },
+      ];
+    }
+
+    const [total, dishes] = await Promise.all([
+      this.prisma.dish.count({ where }),
+      this.prisma.dish.findMany({
+        where,
+        skip,
+        take: limit,
+        include: {
+          category: true,
+          station: true,
+          optionGroups: {
+            include: {
+              optionGroup: {
+                include: {
+                  options: {
+                    include: { portionPrices: true },
+                  },
                 },
               },
             },
           },
+          tierPrices: {
+            include: { tier: true },
+          },
         },
-        tierPrices: {
-          include: { tier: true },
-        },
-      },
-      orderBy: { name: 'asc' },
-    });
+        orderBy: { name: 'asc' },
+      }),
+    ]);
 
-    return dishes.map((dish) => ({
+    const formattedDishes = dishes.map((dish) => ({
       ...dish,
       allergens: JSON.parse(dish.allergensJson || '[]'),
       dietaryTags: JSON.parse(dish.dietaryTagsJson || '[]'),
     }));
+
+    return {
+      total,
+      page,
+      limit,
+      totalPages: Math.ceil(total / limit),
+      dishes: formattedDishes,
+    };
   }
 
   async getDishById(id: string) {
@@ -110,8 +158,10 @@ export class CatalogueService {
     name: string;
     description: string;
     sku: string;
+    imageUrl?: string;
     temperature: 'HOT' | 'COLD';
     costPriceCents: number;
+    minOrderQuantity?: number;
     stationId?: string;
     allergens?: string[];
     dietaryTags?: string[];
@@ -119,7 +169,7 @@ export class CatalogueService {
     standardPriceCents?: number;
   }) {
     const existingSku = await this.prisma.dish.findUnique({ where: { sku: data.sku } });
-    if (existingSku) throw new BadRequestException(`SKU ${data.sku} already exists`);
+    if (existingSku) throw new BadRequestException(`SKU "${data.sku}" already exists`);
 
     const standardTier = await this.prisma.priceTier.findFirst({ where: { isDefault: true } });
 
@@ -129,9 +179,11 @@ export class CatalogueService {
         name: data.name,
         description: data.description,
         sku: data.sku,
+        imageUrl: data.imageUrl || null,
         temperature: data.temperature,
         costPriceCents: data.costPriceCents,
-        stationId: data.stationId,
+        minOrderQuantity: data.minOrderQuantity || 1,
+        stationId: data.stationId || null,
         allergensJson: JSON.stringify(data.allergens || []),
         dietaryTagsJson: JSON.stringify(data.dietaryTags || []),
         optionGroups: data.optionGroupIds
@@ -154,10 +206,14 @@ export class CatalogueService {
   async updateDish(
     id: string,
     data: {
+      categoryId?: string;
       name?: string;
       description?: string;
+      sku?: string;
+      imageUrl?: string;
       temperature?: 'HOT' | 'COLD';
       costPriceCents?: number;
+      minOrderQuantity?: number;
       stationId?: string;
       isActive?: boolean;
       allergens?: string[];
@@ -165,11 +221,23 @@ export class CatalogueService {
       optionGroupIds?: string[];
     },
   ) {
+    const existing = await this.prisma.dish.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundException('Dish not found');
+
+    if (data.sku && data.sku !== existing.sku) {
+      const dup = await this.prisma.dish.findUnique({ where: { sku: data.sku } });
+      if (dup) throw new BadRequestException(`SKU "${data.sku}" is already in use by another dish`);
+    }
+
     const updatePayload: any = {};
+    if (data.categoryId !== undefined) updatePayload.categoryId = data.categoryId;
     if (data.name !== undefined) updatePayload.name = data.name;
     if (data.description !== undefined) updatePayload.description = data.description;
+    if (data.sku !== undefined) updatePayload.sku = data.sku;
+    if (data.imageUrl !== undefined) updatePayload.imageUrl = data.imageUrl;
     if (data.temperature !== undefined) updatePayload.temperature = data.temperature;
     if (data.costPriceCents !== undefined) updatePayload.costPriceCents = data.costPriceCents;
+    if (data.minOrderQuantity !== undefined) updatePayload.minOrderQuantity = data.minOrderQuantity;
     if (data.stationId !== undefined) updatePayload.stationId = data.stationId;
     if (data.isActive !== undefined) updatePayload.isActive = data.isActive;
     if (data.allergens !== undefined) updatePayload.allergensJson = JSON.stringify(data.allergens);
@@ -190,7 +258,14 @@ export class CatalogueService {
     return this.getDishById(id);
   }
 
+  /**
+   * Deactivate a dish without breaking historical order references.
+   * Sets isActive: false.
+   */
   async deactivateDish(id: string) {
+    const dish = await this.prisma.dish.findUnique({ where: { id } });
+    if (!dish) throw new NotFoundException('Dish not found');
+
     return this.prisma.dish.update({
       where: { id },
       data: { isActive: false },
@@ -262,5 +337,60 @@ export class CatalogueService {
     });
 
     return group;
+  }
+
+  async updateOptionGroup(
+    id: string,
+    data: {
+      name?: string;
+      isRequired?: boolean;
+      displayOrder?: number;
+      usesPortions?: boolean;
+    },
+  ) {
+    const og = await this.prisma.optionGroup.findUnique({ where: { id } });
+    if (!og) throw new NotFoundException('Option group not found');
+
+    return this.prisma.optionGroup.update({
+      where: { id },
+      data,
+    });
+  }
+
+  // Company Menu Hiding Configuration
+  async toggleCompanyCategoryHiding(companyId: string, categoryId: string) {
+    const existing = await this.prisma.companyHiddenCategory.findUnique({
+      where: { companyId_categoryId: { companyId, categoryId } },
+    });
+
+    if (existing) {
+      await this.prisma.companyHiddenCategory.delete({
+        where: { companyId_categoryId: { companyId, categoryId } },
+      });
+      return { companyId, categoryId, isHidden: false };
+    } else {
+      await this.prisma.companyHiddenCategory.create({
+        data: { companyId, categoryId },
+      });
+      return { companyId, categoryId, isHidden: true };
+    }
+  }
+
+  async toggleCompanyDishHiding(companyId: string, dishId: string) {
+    const existing = await this.prisma.companyHiddenItem.findUnique({
+      where: { companyId_dishId: { companyId, dishId } },
+    });
+
+    if (existing) {
+      await this.prisma.companyHiddenItem.delete({
+        where: { companyId_dishId: { companyId, dishId } },
+      });
+      return { companyId, dishId, isHidden: false };
+    } else {
+      await this.prisma.companyHiddenItem.create({
+        data: { companyId, dishId },
+      });
+      return { companyId, dishId, isHidden: true };
+    }
   }
 }
