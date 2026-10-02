@@ -219,6 +219,7 @@ export class CatalogueService {
       allergens?: string[];
       dietaryTags?: string[];
       optionGroupIds?: string[];
+      standardPriceCents?: number;
     },
   ) {
     const existing = await this.prisma.dish.findUnique({ where: { id } });
@@ -255,7 +256,46 @@ export class CatalogueService {
       data: updatePayload,
     });
 
+    if (data.standardPriceCents !== undefined) {
+      const standardTier = await this.prisma.priceTier.findFirst({ where: { isDefault: true } });
+      if (standardTier) {
+        await this.prisma.dishTierPrice.upsert({
+          where: {
+            dishId_tierId: {
+              dishId: id,
+              tierId: standardTier.id,
+            },
+          },
+          create: {
+            dishId: id,
+            tierId: standardTier.id,
+            priceCents: data.standardPriceCents,
+            isOverride: true,
+          },
+          update: {
+            priceCents: data.standardPriceCents,
+            isOverride: true,
+          },
+        });
+      }
+    }
+
     return this.getDishById(id);
+  }
+
+  /**
+   * Toggle dish active status (activate or deactivate).
+   */
+  async toggleDishStatus(id: string, isActive?: boolean) {
+    const dish = await this.prisma.dish.findUnique({ where: { id } });
+    if (!dish) throw new NotFoundException('Dish not found');
+
+    const newStatus = isActive !== undefined ? isActive : !dish.isActive;
+
+    return this.prisma.dish.update({
+      where: { id },
+      data: { isActive: newStatus },
+    });
   }
 
   /**
@@ -263,13 +303,7 @@ export class CatalogueService {
    * Sets isActive: false.
    */
   async deactivateDish(id: string) {
-    const dish = await this.prisma.dish.findUnique({ where: { id } });
-    if (!dish) throw new NotFoundException('Dish not found');
-
-    return this.prisma.dish.update({
-      where: { id },
-      data: { isActive: false },
-    });
+    return this.toggleDishStatus(id, false);
   }
 
   // Option Groups & Options

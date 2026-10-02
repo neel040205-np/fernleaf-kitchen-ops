@@ -72,6 +72,12 @@ export class CatalogueController {
   }
 
   @Roles(Role.ADMIN)
+  @Put('dishes/:id/status')
+  async toggleDishStatus(@Param('id') id: string, @Body() body: { isActive?: boolean }) {
+    return this.catalogueService.toggleDishStatus(id, body.isActive);
+  }
+
+  @Roles(Role.ADMIN)
   @Delete('dishes/:id')
   async deactivateDish(@Param('id') id: string) {
     return this.catalogueService.deactivateDish(id);
