@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { AppLayout } from '../../components/layout/AppLayout';
 import { fetchApi } from '../../lib/api';
+import { dollarsToCents, centsToDollarsStr, formatUsd } from '../../lib/money';
 import {
   UtensilsCrossed,
   Plus,
@@ -34,7 +35,7 @@ export default function CataloguePage() {
   const [isPreviewOpen, setIsPreviewOpen] = useState(false);
   const [selectedEmployeeId, setSelectedEmployeeId] = useState('');
 
-  // Create/Edit Dish Modal state
+  // Create/Edit Dish Modal state (Prices entered in Dollar.Cent format e.g. "4.50", "12.00")
   const [isDishModalOpen, setIsDishModalOpen] = useState(false);
   const [editingDishId, setEditingDishId] = useState<string | null>(null);
   const [dishForm, setDishForm] = useState({
@@ -43,9 +44,9 @@ export default function CataloguePage() {
     sku: '',
     categoryId: '',
     temperature: 'HOT',
-    costPriceCents: 400,
+    costPriceDollars: '4.50',
     minOrderQuantity: 1,
-    standardPriceCents: 1200,
+    standardPriceDollars: '12.00',
     stationId: '',
     imageUrl: '',
   });
@@ -145,17 +146,6 @@ export default function CataloguePage() {
     },
   });
 
-  const toggleDishHidingMutation = useMutation({
-    mutationFn: (payload: { companyId: string; dishId: string }) =>
-      fetchApi('/catalogue/hiding/dish', {
-        method: 'POST',
-        body: JSON.stringify(payload),
-      }),
-    onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['companyDetail', hidingCompanyId] });
-    },
-  });
-
   const resetDishForm = () => {
     setEditingDishId(null);
     setDishForm({
@@ -164,9 +154,9 @@ export default function CataloguePage() {
       sku: '',
       categoryId: '',
       temperature: 'HOT',
-      costPriceCents: 400,
+      costPriceDollars: '4.50',
       minOrderQuantity: 1,
-      standardPriceCents: 1200,
+      standardPriceDollars: '12.00',
       stationId: '',
       imageUrl: '',
     });
@@ -180,16 +170,14 @@ export default function CataloguePage() {
       sku: dish.sku,
       categoryId: dish.categoryId,
       temperature: dish.temperature,
-      costPriceCents: dish.costPriceCents,
+      costPriceDollars: centsToDollarsStr(dish.costPriceCents),
       minOrderQuantity: dish.minOrderQuantity || 1,
-      standardPriceCents: 1200,
+      standardPriceDollars: '12.00',
       stationId: dish.stationId || '',
       imageUrl: dish.imageUrl || '',
     });
     setIsDishModalOpen(true);
   };
-
-  const formatUsd = (cents: number) => `$${(cents / 100).toFixed(2)}`;
 
   return (
     <AppLayout>
@@ -263,7 +251,7 @@ export default function CataloguePage() {
           </button>
         </div>
 
-        {/* Dishes Tab with Search & Filters */}
+        {/* Dishes Tab */}
         {activeTab === 'dishes' && (
           <div className="space-y-4">
             <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-wrap items-center gap-4 text-xs">
@@ -321,7 +309,7 @@ export default function CataloguePage() {
                       <th className="p-4">Dish</th>
                       <th className="p-4">SKU</th>
                       <th className="p-4">Category</th>
-                      <th className="p-4">Cost Price</th>
+                      <th className="p-4">Cost Price ($)</th>
                       <th className="p-4">Station</th>
                       <th className="p-4">Temp</th>
                       <th className="p-4">Status</th>
@@ -339,7 +327,7 @@ export default function CataloguePage() {
                         </td>
                         <td className="p-4 font-mono text-xs text-slate-600">{dish.sku}</td>
                         <td className="p-4 text-slate-700">{dish.category?.name || 'Unassigned'}</td>
-                        <td className="p-4 font-semibold text-slate-900">{formatUsd(dish.costPriceCents)}</td>
+                        <td className="p-4 font-bold text-slate-900">{formatUsd(dish.costPriceCents)}</td>
                         <td className="p-4 text-slate-600">{dish.station?.name || 'Unassigned'}</td>
                         <td className="p-4">
                           {dish.temperature === 'HOT' ? (
@@ -581,6 +569,9 @@ export default function CataloguePage() {
               <form
                 onSubmit={(e) => {
                   e.preventDefault();
+                  const costCents = dollarsToCents(dishForm.costPriceDollars);
+                  const standardCents = dollarsToCents(dishForm.standardPriceDollars);
+
                   if (editingDishId) {
                     updateDishMutation.mutate({
                       id: editingDishId,
@@ -590,14 +581,18 @@ export default function CataloguePage() {
                         sku: dishForm.sku,
                         categoryId: dishForm.categoryId,
                         temperature: dishForm.temperature,
-                        costPriceCents: dishForm.costPriceCents,
+                        costPriceCents: costCents,
                         minOrderQuantity: dishForm.minOrderQuantity,
                         stationId: dishForm.stationId || undefined,
                         imageUrl: dishForm.imageUrl || undefined,
                       },
                     });
                   } else {
-                    createDishMutation.mutate(dishForm);
+                    createDishMutation.mutate({
+                      ...dishForm,
+                      costPriceCents: costCents,
+                      standardPriceCents: standardCents,
+                    });
                   }
                 }}
                 className="space-y-3 text-xs"
@@ -657,14 +652,32 @@ export default function CataloguePage() {
 
                 <div className="grid grid-cols-3 gap-3">
                   <div>
-                    <label className="block font-semibold text-slate-700 mb-1">Cost Price (Cents)</label>
-                    <input
-                      type="number"
-                      required
-                      value={dishForm.costPriceCents}
-                      onChange={(e) => setDishForm({ ...dishForm, costPriceCents: parseInt(e.target.value, 10) })}
-                      className="w-full p-2.5 rounded border border-slate-300 text-sm"
-                    />
+                    <label className="block font-semibold text-slate-700 mb-1">Cost Price ($)</label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-2.5 text-slate-400 font-bold">$</span>
+                      <input
+                        type="text"
+                        required
+                        value={dishForm.costPriceDollars}
+                        onChange={(e) => setDishForm({ ...dishForm, costPriceDollars: e.target.value })}
+                        placeholder="4.50"
+                        className="w-full pl-7 pr-3 py-2.5 rounded border border-slate-300 text-sm font-semibold"
+                      />
+                    </div>
+                  </div>
+                  <div>
+                    <label className="block font-semibold text-slate-700 mb-1">Standard Price ($)</label>
+                    <div className="relative">
+                      <span className="absolute left-3 top-2.5 text-slate-400 font-bold">$</span>
+                      <input
+                        type="text"
+                        required
+                        value={dishForm.standardPriceDollars}
+                        onChange={(e) => setDishForm({ ...dishForm, standardPriceDollars: e.target.value })}
+                        placeholder="12.00"
+                        className="w-full pl-7 pr-3 py-2.5 rounded border border-slate-300 text-sm font-semibold"
+                      />
+                    </div>
                   </div>
                   <div>
                     <label className="block font-semibold text-slate-700 mb-1">Temperature</label>
@@ -676,15 +689,6 @@ export default function CataloguePage() {
                       <option value="HOT">HOT</option>
                       <option value="COLD">COLD</option>
                     </select>
-                  </div>
-                  <div>
-                    <label className="block font-semibold text-slate-700 mb-1">Min Order Qty</label>
-                    <input
-                      type="number"
-                      value={dishForm.minOrderQuantity}
-                      onChange={(e) => setDishForm({ ...dishForm, minOrderQuantity: parseInt(e.target.value, 10) })}
-                      className="w-full p-2.5 rounded border border-slate-300 text-sm"
-                    />
                   </div>
                 </div>
 
