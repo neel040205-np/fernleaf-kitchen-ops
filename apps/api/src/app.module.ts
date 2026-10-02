@@ -13,6 +13,8 @@ import { BillingModule } from './modules/billing/billing.module';
 import { SettingsModule } from './modules/settings/settings.module';
 import { DashboardsModule } from './modules/dashboards/dashboards.module';
 
+import { AppController } from './app.controller';
+
 @Module({
   imports: [
     ConfigModule.forRoot({
@@ -31,5 +33,6 @@ import { DashboardsModule } from './modules/dashboards/dashboards.module';
     SettingsModule,
     DashboardsModule,
   ],
+  controllers: [AppController],
 })
 export class AppModule {}
