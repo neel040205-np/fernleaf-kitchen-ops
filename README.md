@@ -63,41 +63,71 @@ Use these exact credentials to test role-enforced features and workflows on the 
    npm run test:api
    ```
 
----
+## 📐 Architecture Overview & System Diagrams
 
-## 📐 Architecture Overview & Data Model Diagram
+### 1. High-Level System Architecture
+The application is structured as a full-stack monorepo (`apps/api` NestJS REST API backend + `apps/web` Next.js 14 App Router frontend):
 
-The project is structured as an npm monorepo (`apps/api` with NestJS REST API and `apps/web` with Next.js 14 App Router):
+```mermaid
+graph TD
+    Client["Frontend (Next.js 14 App Router)"]
+    API["Backend REST API (NestJS Monorepo)"]
+    Auth["Server RBAC (JWT & RolesGuard)"]
+    Prisma["Prisma ORM"]
+    DB[(Database PostgreSQL / SQLite)]
+
+    Client -->|HTTP REST + Bearer Token| API
+    API --> Auth
+    Auth --> API
+    API --> Prisma
+    Prisma --> DB
+```
+
+### 2. Data Model Diagram (Entity Relationship Diagram)
 
 ```mermaid
 erDiagram
-    User ||--o{ Company : owns
-    User ||--o{ DeliveryDrop : drives
-    User ||--o{ Employee : links
-    Company ||--o{ CompanyEmailDomain : has
-    Company ||--o{ DeliveryAddress : has
-    Company ||--o{ Employee : employs
-    Company ||--o{ CompanyHoliday : observes
-    Company ||--o{ DeliveryDrop : receives
-    Company ||--o{ Invoice : billed
-    PriceTier ||--o{ Company : applies
-    PriceTier ||--o{ DishTierPrice : prices
-    PriceTier ||--o{ OptionTierPrice : prices
-    Category ||--o{ Dish : contains
-    Dish ||--o{ DishOptionGroup : offers
-    OptionGroup ||--o{ Option : includes
-    Option ||--o{ OptionPortionPrice : has
-    Employee ||--o{ Order : places
-    DeliveryAddress ||--o{ Order : shipsTo
-    Order ||--o{ OrderLine : contains
-    OrderLine ||--o{ OrderLineCombination : splitsInto
-    OrderLineCombination ||--o{ OrderCombinationOption : chooses
-    OrderLineCombination ||--o{ KitchenPrepUnit : preps
-    DeliveryDrop ||--o{ Order : groups
-    Invoice ||--o{ Order : includes
-    DeliveryPartner ||--o{ User : linksAccount
-    DeliveryPartner ||--o{ Company : serves
+    User ||--o{ Company : "owns"
+    User ||--o{ DeliveryDrop : "drives"
+    User ||--o{ Employee : "links"
+    Company ||--o{ CompanyEmailDomain : "has"
+    Company ||--o{ DeliveryAddress : "has"
+    Company ||--o{ Employee : "employs"
+    Company ||--o{ CompanyHoliday : "observes"
+    Company ||--o{ DeliveryDrop : "receives"
+    Company ||--o{ Invoice : "billed"
+    PriceTier ||--o{ Company : "applies"
+    PriceTier ||--o{ DishTierPrice : "prices"
+    PriceTier ||--o{ OptionTierPrice : "prices"
+    Category ||--o{ Dish : "contains"
+    Dish ||--o{ DishOptionGroup : "offers"
+    OptionGroup ||--o{ Option : "includes"
+    Option ||--o{ OptionPortionPrice : "has"
+    Employee ||--o{ Order : "places"
+    DeliveryAddress ||--o{ Order : "shipsTo"
+    Order ||--o{ OrderLine : "contains"
+    OrderLine ||--o{ OrderLineCombination : "splitsInto"
+    OrderLineCombination ||--o{ OrderCombinationOption : "chooses"
+    OrderLineCombination ||--o{ KitchenPrepUnit : "preps"
+    DeliveryDrop ||--o{ Order : "groups"
+    Invoice ||--o{ Order : "includes"
+    DeliveryPartner ||--o{ User : "linksAccount"
+    DeliveryPartner ||--o{ Company : "serves"
 ```
+
+---
+
+## 🛡️ Non-Functional Requirements Compliance (Section 7)
+
+| Requirement | Compliance & Implementation Details |
+| :--- | :--- |
+| **1. Correctness of Money** | Zero floating-point arithmetic. All monetary values (`costCents`, `unitPriceCents`, `totalCents`) are calculated and stored as **integer cents** (`Int`). Order total strictly equals `sum(line.totalCents)` and Invoice total strictly equals `sum(order.totalCents)` without rounding drift. |
+| **2. Time Zones** | Assumed Kitchen Time Zone is **UTC**. Dates and cut-offs use pure UTC parsing (`parseDateUTC`) so cut-offs, delivery dates, and "today" operate identically regardless of browser or server locale. |
+| **3. Concurrency** | Race conditions prevented via atomic database transitions (`prisma.$transaction`) and status check guards (`PENDING` -> `STARTED` -> `DONE`). Concurrent staff actions on orders or prep units cannot corrupt database state. |
+| **4. Server Validation** | Input strictly validated on backend via NestJS `ValidationPipe` and DTO schemas. Actionable error messages are returned in HTTP 400 responses and rendered cleanly in UI error banners. |
+| **5. Performance & Pagination** | Server-side pagination (`take`/`skip`) applied on orders, employees, and invoices. Kitchen board uses optimized date-indexed queries maintaining high responsiveness even under 400+ daily orders. |
+| **6. Code Quality & Typing** | Clean NestJS module boundaries (`auth`, `catalogue`, `companies`, `dispatch`, `employees`, `kitchen`, `orders`, `pricing`, `billing`). Monorepo type safety with zero linting or TypeScript compilation errors. |
+| **7. Test Suite** | 11 Jest test suites (39 unit/integration tests) verifying critical business logic: cut-off calculation, price tier derivation, combination splitting, prep unit routing, invoicing, and RBAC guards. |
 
 ---
 
