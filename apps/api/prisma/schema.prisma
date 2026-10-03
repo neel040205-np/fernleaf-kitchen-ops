@@ -17,10 +17,11 @@ model User {
   createdAt    DateTime       @default(now())
   updatedAt    DateTime       @updatedAt
 
-  assignedDrops          DeliveryDrop[] @relation("DriverDrops")
-  ownedCompanies         Company[]      @relation("CompanyOwner")
-  defaultDriverCompanies Company[]      @relation("DefaultDriver")
+  assignedDrops          DeliveryDrop[]   @relation("DriverDrops")
+  ownedCompanies         Company[]        @relation("CompanyOwner")
+  defaultDriverCompanies Company[]        @relation("DefaultDriver")
   employees              Employee[]
+  deliveryPartner        DeliveryPartner? @relation("UserDeliveryPartner")
 }
 
 model KitchenSettings {
@@ -202,6 +203,7 @@ model Company {
   hiddenItems         CompanyHiddenItem[]
   invoices            Invoice[]
   drops               DeliveryDrop[]
+  deliveryPartners    DeliveryPartner[]
 
   createdAt           DateTime                @default(now())
   updatedAt           DateTime                @updatedAt
@@ -298,6 +300,9 @@ model Order {
   dropId                String?
   drop                  DeliveryDrop?     @relation(fields: [dropId], references: [id])
 
+  deliveryPartnerId     String?
+  deliveryPartner       DeliveryPartner?  @relation("PartnerOrders", fields: [deliveryPartnerId], references: [id])
+
   lines                 OrderLine[]
   prepUnits             KitchenPrepUnit[]
 
@@ -370,6 +375,9 @@ model DeliveryDrop {
   driverId     String?
   driver       User?           @relation("DriverDrops", fields: [driverId], references: [id])
 
+  deliveryPartnerId String?
+  deliveryPartner   DeliveryPartner? @relation("PartnerDrops", fields: [deliveryPartnerId], references: [id])
+
   deliveredAt  DateTime?
   isOnTime     Boolean?
   driverNote   String?
@@ -395,4 +403,22 @@ model Invoice {
 
   createdAt     DateTime      @default(now())
   updatedAt     DateTime      @updatedAt
+}
+
+model DeliveryPartner {
+  id             String         @id @default(uuid())
+  userId         String?        @unique
+  user           User?          @relation("UserDeliveryPartner", fields: [userId], references: [id])
+  name           String
+  email          String         @unique
+  phone          String?
+  companyId      String?
+  company        Company?       @relation(fields: [companyId], references: [id])
+  vehicleDetails String?        @default("Delivery Vehicle")
+  status         String         @default("ACTIVE") // ACTIVE, INACTIVE
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
+
+  assignedDrops  DeliveryDrop[] @relation("PartnerDrops")
+  assignedOrders Order[]        @relation("PartnerOrders")
 }

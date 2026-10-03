@@ -34,6 +34,7 @@ export default function OrdersPage() {
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
   const [isEditing, setIsEditing] = useState(false);
   const [editingOrderId, setEditingOrderId] = useState<string | null>(null);
+  const [modalError, setModalError] = useState<string>('');
 
   const [orderEmployeeId, setOrderEmployeeId] = useState('');
   const [orderDeliveryDate, setOrderDeliveryDate] = useState(new Date().toISOString().split('T')[0]);
@@ -83,6 +84,9 @@ export default function OrdersPage() {
       queryClient.invalidateQueries({ queryKey: ['orders'] });
       closeModal();
     },
+    onError: (err: any) => {
+      setModalError(err.message || 'Failed to place order (400 Bad Request)');
+    },
   });
 
   const updateOrderMutation = useMutation({
@@ -96,7 +100,7 @@ export default function OrdersPage() {
       closeModal();
     },
     onError: (err: any) => {
-      alert(err.message || 'Failed to update order');
+      setModalError(err.message || 'Failed to update order (400 Bad Request)');
     },
   });
 
@@ -123,6 +127,7 @@ export default function OrdersPage() {
     setSelectedOptionIds([]);
     setOrderLines([]);
     setComboQty(1);
+    setModalError('');
   };
 
   /**
@@ -143,6 +148,7 @@ export default function OrdersPage() {
   };
 
   const handleOpenEditModal = (ord: any) => {
+    setModalError('');
     setIsEditing(true);
     setEditingOrderId(ord.id);
     setOrderEmployeeId(ord.employeeId);
@@ -169,6 +175,7 @@ export default function OrdersPage() {
   };
 
   const addCombinationToOrder = () => {
+    setModalError('');
     if (!selectedDishId) return;
 
     let targetDish: any = null;
@@ -181,6 +188,18 @@ export default function OrdersPage() {
     }
 
     if (!targetDish) return;
+
+    // Validate required option groups
+    for (const og of targetDish.optionGroups || []) {
+      if (og.isRequired) {
+        const optionIdsInGroup = og.options?.map((opt: any) => opt.id) || [];
+        const hasSelected = selectedOptionIds.some((id) => optionIdsInGroup.includes(id));
+        if (!hasSelected) {
+          setModalError(`Please select a required option for group "${og.name}"`);
+          return;
+        }
+      }
+    }
 
     const chosenOptions = [];
     let optionTotalCents = 0;
@@ -390,6 +409,13 @@ export default function OrdersPage() {
               </div>
 
               <div className="space-y-4 text-xs overflow-y-auto pr-1 flex-1">
+                {modalError && (
+                  <div className="p-3 bg-rose-50 border border-rose-200 text-rose-700 text-xs rounded-xl font-bold flex items-center justify-between">
+                    <span>{modalError}</span>
+                    <button type="button" onClick={() => setModalError('')} className="text-rose-500 hover:text-rose-700 font-bold ml-2">✕</button>
+                  </div>
+                )}
+
                 {/* Step 1: Employee & Delivery Logistics */}
                 <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
                   <p className="font-bold text-slate-900 text-xs flex items-center gap-1.5">

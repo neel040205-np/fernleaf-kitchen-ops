@@ -8,50 +8,155 @@ export class DispatchService {
   constructor(private prisma: PrismaService) {}
 
   /**
-   * Get all registered driver/rider users
+   * Get all registered Delivery Partners with their assigned company and order records
    */
-  async getDrivers() {
-    return this.prisma.user.findMany({
-      where: { role: Role.DRIVER },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        role: true,
-        createdAt: true,
+  async getDeliveryPartners() {
+    return this.prisma.deliveryPartner.findMany({
+      include: {
+        user: { select: { id: true, name: true, email: true, role: true } },
+        company: { select: { id: true, name: true } },
+        assignedOrders: {
+          include: {
+            employee: true,
+            deliveryAddress: true,
+          },
+          orderBy: { createdAt: 'desc' },
+        },
+        assignedDrops: {
+          include: {
+            company: true,
+            address: true,
+          },
+        },
       },
-      orderBy: { name: 'asc' },
+      orderBy: { createdAt: 'desc' },
     });
   }
 
   /**
-   * Create a new driver/rider user account
+   * Create a new Delivery Partner record and provision a User account for email/password login
    */
-  async createDriver(data: { name: string; email: string; password?: string }) {
+  async createDeliveryPartner(data: {
+    name: string;
+    email: string;
+    phone?: string;
+    companyId?: string;
+    vehicleDetails?: string;
+    password?: string;
+  }) {
     const email = data.email.toLowerCase().trim();
-    const existing = await this.prisma.user.findUnique({ where: { email } });
-    if (existing) {
-      throw new ConflictException(`User with email "${email}" already exists`);
+
+    const existingPartner = await this.prisma.deliveryPartner.findUnique({ where: { email } });
+    if (existingPartner) {
+      throw new ConflictException(`Delivery Partner with email "${email}" already exists`);
     }
 
-    const rawPassword = data.password || 'Test@1234';
-    const passwordHash = await bcrypt.hash(rawPassword, 10);
+    let user = await this.prisma.user.findUnique({ where: { email } });
+    if (!user) {
+      const rawPassword = data.password || 'Test@1234';
+      const passwordHash = await bcrypt.hash(rawPassword, 10);
+      user = await this.prisma.user.create({
+        data: {
+          name: data.name,
+          email,
+          passwordHash,
+          role: Role.DRIVER,
+        },
+      });
+    }
 
-    return this.prisma.user.create({
+    return this.prisma.deliveryPartner.create({
       data: {
+        userId: user.id,
         name: data.name,
         email,
-        passwordHash,
-        role: Role.DRIVER,
+        phone: data.phone || null,
+        companyId: data.companyId || null,
+        vehicleDetails: data.vehicleDetails || 'Delivery Vehicle',
+        status: 'ACTIVE',
       },
-      select: {
-        id: true,
-        name: true,
-        email: true,
-        role: true,
-        createdAt: true,
+      include: {
+        user: { select: { id: true, name: true, email: true, role: true } },
+        company: true,
       },
     });
+  }
+
+  /**
+   * Assign a Delivery Partner to a specific Order & Company drop
+   */
+  async assignPartnerToOrder(orderId: string, deliveryPartnerId: string) {
+    const partner = await this.prisma.deliveryPartner.findUnique({
+      where: { id: deliveryPartnerId },
+      include: { user: true },
+    });
+    if (!partner) throw new NotFoundException('Delivery Partner not found');
+
+    const order = await this.prisma.order.findUnique({ where: { id: orderId } });
+    if (!order) throw new NotFoundException('Order not found');
+
+    const updatedOrder = await this.prisma.order.update({
+      where: { id: orderId },
+      data: { deliveryPartnerId },
+      include: { deliveryPartner: true, employee: { include: { company: true } } },
+    });
+
+    if (order.dropId) {
+      await this.prisma.deliveryDrop.update({
+        where: { id: order.dropId },
+        data: {
+          deliveryPartnerId,
+          driverId: partner.userId || undefined,
+        },
+      });
+    }
+
+    return updatedOrder;
+  }
+
+  /**
+   * Delivery Partner real-time tracking view for assigned company orders & drops
+   */
+  async getPartnerMyDeliveries(userId: string) {
+    const partner = await this.prisma.deliveryPartner.findFirst({
+      where: { OR: [{ userId }, { user: { id: userId } }] },
+    });
+
+    const whereCondition = partner ? { OR: [{ driverId: userId }, { deliveryPartnerId: partner.id }] } : { driverId: userId };
+
+    const drops = await this.prisma.deliveryDrop.findMany({
+      where: whereCondition,
+      include: {
+        company: true,
+        address: true,
+        deliveryPartner: true,
+        orders: {
+          include: {
+            employee: true,
+            deliveryAddress: true,
+            lines: { include: { combinations: { include: { options: true } } } },
+          },
+        },
+      },
+      orderBy: { deliveryTime: 'asc' },
+    });
+
+    const orders = await this.prisma.order.findMany({
+      where: partner ? { OR: [{ deliveryPartnerId: partner.id }] } : { id: 'none' },
+      include: {
+        employee: { include: { company: true } },
+        deliveryAddress: true,
+        deliveryPartner: true,
+        lines: { include: { combinations: { include: { options: true } } } },
+      },
+      orderBy: { createdAt: 'desc' },
+    });
+
+    return {
+      partner,
+      drops,
+      orders,
+    };
   }
 
   /**
@@ -119,9 +224,11 @@ export class DispatchService {
         company: true,
         address: true,
         driver: { select: { id: true, name: true, email: true } },
+        deliveryPartner: true,
         orders: {
           include: {
             employee: true,
+            deliveryPartner: true,
             lines: { include: { combinations: { include: { options: true } } } },
           },
         },
@@ -132,7 +239,7 @@ export class DispatchService {
     return {
       deliveryDate,
       totalDrops: drops.length,
-      unassignedCount: drops.filter((d) => !d.driverId).length,
+      unassignedCount: drops.filter((d) => !d.driverId && !d.deliveryPartnerId).length,
       drops,
     };
   }
@@ -141,10 +248,15 @@ export class DispatchService {
     const driver = await this.prisma.user.findUnique({ where: { id: driverId } });
     if (!driver) throw new NotFoundException('Driver user not found');
 
+    const partner = await this.prisma.deliveryPartner.findFirst({ where: { userId: driverId } });
+
     return this.prisma.deliveryDrop.update({
       where: { id: dropId },
-      data: { driverId },
-      include: { driver: true, company: true, address: true },
+      data: {
+        driverId,
+        deliveryPartnerId: partner?.id || undefined,
+      },
+      include: { driver: true, deliveryPartner: true, company: true, address: true },
     });
   }
 
@@ -152,8 +264,8 @@ export class DispatchService {
     const drop = await this.prisma.deliveryDrop.findUnique({ where: { id: dropId } });
     if (!drop) throw new NotFoundException('Drop not found');
 
-    if (status === DropStatus.OUT_FOR_DELIVERY && !drop.driverId) {
-      throw new BadRequestException('Cannot mark drop OUT_FOR_DELIVERY without an assigned driver');
+    if (status === DropStatus.OUT_FOR_DELIVERY && !drop.driverId && !drop.deliveryPartnerId) {
+      throw new BadRequestException('Cannot mark drop OUT_FOR_DELIVERY without an assigned driver/partner');
     }
 
     return this.prisma.deliveryDrop.update({
@@ -172,17 +284,23 @@ export class DispatchService {
     const nextDate = new Date(targetDate);
     nextDate.setDate(targetDate.getDate() + 1);
 
+    const partner = await this.prisma.deliveryPartner.findFirst({ where: { userId: driverUserId } });
+
+    const whereCondition: any = {
+      deliveryDate: { gte: targetDate, lt: nextDate },
+      OR: [{ driverId: driverUserId }, partner ? { deliveryPartnerId: partner.id } : {}],
+    };
+
     return this.prisma.deliveryDrop.findMany({
-      where: {
-        driverId: driverUserId,
-        deliveryDate: { gte: targetDate, lt: nextDate },
-      },
+      where: whereCondition,
       include: {
         company: true,
         address: true,
+        deliveryPartner: true,
         orders: {
           include: {
             employee: true,
+            deliveryPartner: true,
             lines: { include: { combinations: { include: { options: true } } } },
           },
         },
@@ -205,7 +323,9 @@ export class DispatchService {
     });
 
     if (!drop) throw new NotFoundException('Drop not found');
-    if (drop.driverId !== driverUserId) {
+    const partner = await this.prisma.deliveryPartner.findFirst({ where: { userId: driverUserId } });
+
+    if (drop.driverId !== driverUserId && drop.deliveryPartnerId !== partner?.id) {
       throw new BadRequestException('This drop is not assigned to you');
     }
 

@@ -12,9 +12,9 @@ export default function DriverPage() {
   const [driverNote, setDriverNote] = useState('');
   const [photoUrl, setPhotoUrl] = useState('');
 
-  const { data: myDrops, isLoading } = useQuery({
-    queryKey: ['myDrops'],
-    queryFn: () => fetchApi('/dispatch/driver/my-drops'),
+  const { data: partnerData, isLoading } = useQuery({
+    queryKey: ['myPartnerDeliveries'],
+    queryFn: () => fetchApi('/dispatch/partner/my-deliveries'),
     refetchInterval: 10000,
   });
 
@@ -25,47 +25,51 @@ export default function DriverPage() {
         body: JSON.stringify({ driverNote: payload.driverNote, photoUrl: payload.photoUrl }),
       }),
     onSuccess: () => {
-      queryClient.invalidateQueries({ queryKey: ['myDrops'] });
+      queryClient.invalidateQueries({ queryKey: ['myPartnerDeliveries'] });
       setSelectedDrop(null);
       setDriverNote('');
       setPhotoUrl('');
     },
   });
 
+  const drops = partnerData?.drops || [];
+
   return (
     <AppLayout>
       <div className="max-w-md mx-auto space-y-5 pb-12">
-        <div className="bg-emerald-800 text-white p-5 rounded-2xl shadow-lg space-y-1">
+        <div className="bg-emerald-900 text-white p-5 rounded-2xl shadow-lg space-y-1">
           <div className="flex items-center gap-2 text-emerald-200">
             <Truck className="w-5 h-5" />
-            <span className="text-xs font-bold uppercase tracking-wider">Driver Mobile Dashboard</span>
+            <span className="text-xs font-bold uppercase tracking-wider">
+              {partnerData?.partner?.name ? `Partner: ${partnerData.partner.name}` : 'Delivery Partner Dashboard'}
+            </span>
           </div>
-          <h1 className="text-xl font-black">Today's Assigned Delivery Drops</h1>
-          <p className="text-xs text-emerald-200">Deliveries sorted by target delivery time.</p>
+          <h1 className="text-xl font-black">Assigned Company Deliveries</h1>
+          <p className="text-xs text-emerald-200">Real-time order tracking & delivery completion.</p>
         </div>
 
         {/* Drops List */}
         {isLoading ? (
-          <div className="p-8 text-center text-slate-500">Loading your deliveries...</div>
-        ) : myDrops?.length === 0 ? (
+          <div className="p-8 text-center text-slate-500">Loading your assigned deliveries...</div>
+        ) : drops.length === 0 ? (
           <div className="p-12 text-center bg-white rounded-2xl border border-slate-200 text-slate-500 space-y-2">
             <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto" />
-            <p className="font-bold text-slate-800 text-base">All Caught Up!</p>
-            <p className="text-xs text-slate-400">No active delivery drops assigned to you for today.</p>
+            <p className="font-bold text-slate-800 text-base">All Deliveries Complete!</p>
+            <p className="text-xs text-slate-400">No pending company deliveries assigned to your partner account.</p>
           </div>
         ) : (
           <div className="space-y-4">
-            {myDrops?.map((drop: any) => (
+            {drops.map((drop: any) => (
               <div
                 key={drop.id}
-                className={`p-5 rounded-2xl border shadow-sm space-y-3 bg-white transition ${
+                className={`p-5 rounded-2xl border shadow-xs space-y-3 bg-white transition ${
                   drop.status === 'DELIVERED' ? 'border-emerald-200 bg-emerald-50/20' : 'border-slate-200'
                 }`}
               >
                 <div className="flex items-start justify-between">
                   <div>
                     <span className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-800 bg-emerald-100 px-2.5 py-0.5 rounded-full">
-                      Time: {drop.deliveryTime}
+                      Target: {drop.deliveryTime}
                     </span>
                     <h3 className="font-black text-slate-900 text-lg mt-1">{drop.company?.name}</h3>
                   </div>
@@ -90,8 +94,13 @@ export default function DriverPage() {
                       {drop.address?.addressLine}, {drop.address?.city} ({drop.address?.postalCode})
                     </span>
                   </div>
+                  {drop.orders && drop.orders.length > 0 && (
+                    <div className="text-[11px] text-slate-600 pt-1 font-semibold">
+                      Included Orders: {drop.orders.map((o: any) => `#${o.orderNumber} (${o.employee?.name || 'Employee'})`).join(', ')}
+                    </div>
+                  )}
                   {drop.company?.driverInstructions && (
-                    <div className="text-[11px] text-amber-800 bg-amber-50 p-2 rounded border border-amber-200 mt-2 font-medium">
+                    <div className="text-[11px] text-amber-800 bg-amber-50 p-2 rounded-lg border border-amber-200 mt-2 font-medium">
                       Standing Instructions: "{drop.company.driverInstructions}"
                     </div>
                   )}

@@ -12,9 +12,49 @@ export class DispatchController {
   constructor(private readonly dispatchService: DispatchService) {}
 
   @Roles(Role.ADMIN, Role.DISPATCH)
+  @Get('partners')
+  async getDeliveryPartners() {
+    return this.dispatchService.getDeliveryPartners();
+  }
+
+  @Roles(Role.ADMIN, Role.DISPATCH)
+  @Post('partners')
+  async createDeliveryPartner(
+    @Body()
+    body: {
+      name: string;
+      email: string;
+      phone?: string;
+      companyId?: string;
+      vehicleDetails?: string;
+      password?: string;
+    },
+  ) {
+    if (!body.name || !body.email) {
+      throw new BadRequestException('Delivery partner name and email are required');
+    }
+    return this.dispatchService.createDeliveryPartner(body);
+  }
+
+  @Roles(Role.ADMIN, Role.DISPATCH)
+  @Put('orders/:id/assign-partner')
+  async assignPartnerToOrder(@Param('id') id: string, @Body() body: { deliveryPartnerId: string }) {
+    if (!body.deliveryPartnerId) {
+      throw new BadRequestException('deliveryPartnerId is required');
+    }
+    return this.dispatchService.assignPartnerToOrder(id, body.deliveryPartnerId);
+  }
+
+  @Roles(Role.DRIVER, Role.ADMIN)
+  @Get('partner/my-deliveries')
+  async getPartnerMyDeliveries(@GetUser('id') userId: string) {
+    return this.dispatchService.getPartnerMyDeliveries(userId);
+  }
+
+  @Roles(Role.ADMIN, Role.DISPATCH)
   @Get('drivers')
   async getDrivers() {
-    return this.dispatchService.getDrivers();
+    return this.dispatchService.getDeliveryPartners();
   }
 
   @Roles(Role.ADMIN, Role.DISPATCH)
@@ -23,7 +63,11 @@ export class DispatchController {
     if (!body.name || !body.email) {
       throw new BadRequestException('Driver name and email are required');
     }
-    return this.dispatchService.createDriver(body);
+    return this.dispatchService.createDeliveryPartner({
+      name: body.name,
+      email: body.email,
+      password: body.password,
+    });
   }
 
   @Roles(Role.ADMIN, Role.DISPATCH)
