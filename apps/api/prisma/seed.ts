@@ -5,111 +5,64 @@ import { Role, DishTemperature, OrderStatus, PrepUnitStatus, DropStatus, TierDer
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log('Seeding Fernleaf Kitchen database...');
+  console.log('Seeding Fernleaf Kitchen database with realistic interconnected data...');
 
   const passwordHash = await bcrypt.hash('Test@1234', 10);
 
-  // 1. Seed Mandatory 4 Test Accounts
-  const adminUser = await prisma.user.upsert({
-    where: { email: 'admin@test.com' },
-    update: { passwordHash, role: Role.ADMIN },
-    create: {
-      email: 'admin@test.com',
-      name: 'Admin User',
-      passwordHash,
-      role: Role.ADMIN,
-    },
-  });
+  // 1. Mandatory 4 Test Staff Accounts
+  const [adminUser, kitchenUser, dispatchUser, driverUser] = await Promise.all([
+    prisma.user.upsert({
+      where: { email: 'admin@test.com' },
+      update: { passwordHash, role: Role.ADMIN, name: 'Admin User' },
+      create: { email: 'admin@test.com', name: 'Admin User', passwordHash, role: Role.ADMIN },
+    }),
+    prisma.user.upsert({
+      where: { email: 'kitchen@test.com' },
+      update: { passwordHash, role: Role.KITCHEN, name: 'Kitchen Lead' },
+      create: { email: 'kitchen@test.com', name: 'Kitchen Lead', passwordHash, role: Role.KITCHEN },
+    }),
+    prisma.user.upsert({
+      where: { email: 'dispatch@test.com' },
+      update: { passwordHash, role: Role.DISPATCH, name: 'Dispatch Manager' },
+      create: { email: 'dispatch@test.com', name: 'Dispatch Manager', passwordHash, role: Role.DISPATCH },
+    }),
+    prisma.user.upsert({
+      where: { email: 'driver@test.com' },
+      update: { passwordHash, role: Role.DRIVER, name: 'John Driver' },
+      create: { email: 'driver@test.com', name: 'John Driver', passwordHash, role: Role.DRIVER },
+    }),
+  ]);
 
-  const kitchenUser = await prisma.user.upsert({
-    where: { email: 'kitchen@test.com' },
-    update: { passwordHash, role: Role.KITCHEN },
-    create: {
-      email: 'kitchen@test.com',
-      name: 'Kitchen Lead',
-      passwordHash,
-      role: Role.KITCHEN,
-    },
-  });
-
-  const dispatchUser = await prisma.user.upsert({
-    where: { email: 'dispatch@test.com' },
-    update: { passwordHash, role: Role.DISPATCH },
-    create: {
-      email: 'dispatch@test.com',
-      name: 'Dispatch Manager',
-      passwordHash,
-      role: Role.DISPATCH,
-    },
-  });
-
-  const driverUser = await prisma.user.upsert({
-    where: { email: 'driver@test.com' },
-    update: { passwordHash, role: Role.DRIVER },
-    create: {
-      email: 'driver@test.com',
-      name: 'John Driver',
-      passwordHash,
-      role: Role.DRIVER,
-    },
-  });
-
-  console.log('Created mandatory 4 staff accounts');
+  console.log('✔ Mandatory 4 staff accounts verified (admin@test.com, kitchen@test.com, dispatch@test.com, driver@test.com)');
 
   // 2. Kitchen Settings
   await prisma.kitchenSettings.upsert({
     where: { id: 'default' },
-    update: {
-      workingDaysJson: JSON.stringify([1, 2, 3, 4, 5]),
-      cutoffTime: '16:00',
-      cutoffWorkingDays: 2,
-    },
-    create: {
-      id: 'default',
-      workingDaysJson: JSON.stringify([1, 2, 3, 4, 5]),
-      cutoffTime: '16:00',
-      cutoffWorkingDays: 2,
-    },
+    update: { workingDaysJson: JSON.stringify([1, 2, 3, 4, 5]), cutoffTime: '16:00', cutoffWorkingDays: 2 },
+    create: { id: 'default', workingDaysJson: JSON.stringify([1, 2, 3, 4, 5]), cutoffTime: '16:00', cutoffWorkingDays: 2 },
   });
 
   // 3. Reference Data
-  const stationGrill = await prisma.referenceKitchenStation.upsert({
-    where: { name: 'Grill Station' },
-    update: {},
-    create: { name: 'Grill Station' },
-  });
+  const [stationGrill, stationCold, stationBakery, stationWok] = await Promise.all([
+    prisma.referenceKitchenStation.upsert({ where: { name: 'Grill Station' }, update: {}, create: { name: 'Grill Station' } }),
+    prisma.referenceKitchenStation.upsert({ where: { name: 'Salad & Cold Station' }, update: {}, create: { name: 'Salad & Cold Station' } }),
+    prisma.referenceKitchenStation.upsert({ where: { name: 'Bakery & Dessert Station' }, update: {}, create: { name: 'Bakery & Dessert Station' } }),
+    prisma.referenceKitchenStation.upsert({ where: { name: 'Wok & Stir-Fry Station' }, update: {}, create: { name: 'Wok & Stir-Fry Station' } }),
+  ]);
 
-  await prisma.referenceKitchenStation.upsert({
-    where: { name: 'Salad & Cold Station' },
-    update: {},
-    create: { name: 'Salad & Cold Station' },
-  });
-
-  await prisma.referenceKitchenStation.upsert({
-    where: { name: 'Bakery & Dessert Station' },
-    update: {},
-    create: { name: 'Bakery & Dessert Station' },
-  });
-
-  await prisma.referencePortionSize.upsert({
-    where: { name: 'Regular' },
-    update: { displayOrder: 1 },
-    create: { name: 'Regular', displayOrder: 1 },
-  });
-
-  await prisma.referencePortionSize.upsert({
-    where: { name: 'Large' },
-    update: { displayOrder: 2 },
-    create: { name: 'Large', displayOrder: 2 },
-  });
-
-  await prisma.referenceAllergen.upsert({ where: { name: 'Dairy' }, update: {}, create: { name: 'Dairy' } });
-  await prisma.referenceAllergen.upsert({ where: { name: 'Nuts' }, update: {}, create: { name: 'Nuts' } });
-  await prisma.referenceAllergen.upsert({ where: { name: 'Gluten' }, update: {}, create: { name: 'Gluten' } });
-
-  await prisma.referenceDietaryTag.upsert({ where: { name: 'Vegan' }, update: {}, create: { name: 'Vegan' } });
-  await prisma.referenceDietaryTag.upsert({ where: { name: 'Jain' }, update: {}, create: { name: 'Jain' } });
-  await prisma.referenceDietaryTag.upsert({ where: { name: 'Gluten-Free' }, update: {}, create: { name: 'Gluten-Free' } });
+  await Promise.all([
+    prisma.referencePortionSize.upsert({ where: { name: 'Regular' }, update: { displayOrder: 1 }, create: { name: 'Regular', displayOrder: 1 } }),
+    prisma.referencePortionSize.upsert({ where: { name: 'Large' }, update: { displayOrder: 2 }, create: { name: 'Large', displayOrder: 2 } }),
+    prisma.referenceAllergen.upsert({ where: { name: 'Dairy' }, update: {}, create: { name: 'Dairy' } }),
+    prisma.referenceAllergen.upsert({ where: { name: 'Nuts' }, update: {}, create: { name: 'Nuts' } }),
+    prisma.referenceAllergen.upsert({ where: { name: 'Gluten' }, update: {}, create: { name: 'Gluten' } }),
+    prisma.referenceAllergen.upsert({ where: { name: 'Soy' }, update: {}, create: { name: 'Soy' } }),
+    prisma.referenceAllergen.upsert({ where: { name: 'Eggs' }, update: {}, create: { name: 'Eggs' } }),
+    prisma.referenceDietaryTag.upsert({ where: { name: 'Vegan' }, update: {}, create: { name: 'Vegan' } }),
+    prisma.referenceDietaryTag.upsert({ where: { name: 'Jain' }, update: {}, create: { name: 'Jain' } }),
+    prisma.referenceDietaryTag.upsert({ where: { name: 'Gluten-Free' }, update: {}, create: { name: 'Gluten-Free' } }),
+    prisma.referenceDietaryTag.upsert({ where: { name: 'Vegetarian' }, update: {}, create: { name: 'Vegetarian' } }),
+  ]);
 
   // 4. Price Tiers
   const standardTier = await prisma.priceTier.upsert({
@@ -120,400 +73,412 @@ async function main() {
 
   const enterpriseTier = await prisma.priceTier.upsert({
     where: { name: 'Enterprise' },
-    update: {
-      isDefault: false,
-      derivationType: TierDerivationType.PERCENTAGE_OF_TIER,
-      baseTierId: standardTier.id,
-      multiplier: 1.15,
-    },
-    create: {
-      name: 'Enterprise',
-      isDefault: false,
-      derivationType: TierDerivationType.PERCENTAGE_OF_TIER,
-      baseTierId: standardTier.id,
-      multiplier: 1.15,
-    },
+    update: { isDefault: false, derivationType: TierDerivationType.PERCENTAGE_OF_TIER, baseTierId: standardTier.id, multiplier: 1.15 },
+    create: { name: 'Enterprise', isDefault: false, derivationType: TierDerivationType.PERCENTAGE_OF_TIER, baseTierId: standardTier.id, multiplier: 1.15 },
   });
 
   const partnerTier = await prisma.priceTier.upsert({
     where: { name: 'Partner' },
-    update: {
-      isDefault: false,
-      derivationType: TierDerivationType.MULTIPLIER_OF_COST,
-      multiplier: 2.4,
-    },
-    create: {
-      name: 'Partner',
-      isDefault: false,
-      derivationType: TierDerivationType.MULTIPLIER_OF_COST,
-      multiplier: 2.4,
-    },
+    update: { isDefault: false, derivationType: TierDerivationType.MULTIPLIER_OF_COST, multiplier: 2.4 },
+    create: { name: 'Partner', isDefault: false, derivationType: TierDerivationType.MULTIPLIER_OF_COST, multiplier: 2.4 },
   });
 
-  // 5. Categories & Catalogue Items
-  const catBowls = await prisma.category.upsert({
-    where: { name: 'Bowls & Mains' },
-    update: { displayOrder: 1 },
-    create: { name: 'Bowls & Mains', displayOrder: 1 },
-  });
+  // 5. Categories & Dishes
+  const [catBowls, catBreakfast, catSalads, catDesserts] = await Promise.all([
+    prisma.category.upsert({ where: { name: 'Bowls & Mains' }, update: { displayOrder: 1 }, create: { name: 'Bowls & Mains', displayOrder: 1 } }),
+    prisma.category.upsert({ where: { name: 'Breakfast Specials' }, update: { displayOrder: 2 }, create: { name: 'Breakfast Specials', displayOrder: 2 } }),
+    prisma.category.upsert({ where: { name: 'Salads & Wraps' }, update: { displayOrder: 3 }, create: { name: 'Salads & Wraps', displayOrder: 3 } }),
+    prisma.category.upsert({ where: { name: 'Desserts & Drinks' }, update: { displayOrder: 4 }, create: { name: 'Desserts & Drinks', displayOrder: 4 } }),
+  ]);
 
-  await prisma.category.upsert({
-    where: { name: 'Breakfast Specials' },
-    update: { displayOrder: 2 },
-    create: { name: 'Breakfast Specials', displayOrder: 2 },
-  });
-
-  await prisma.category.upsert({
-    where: { name: 'Desserts & Drinks' },
-    update: { displayOrder: 3 },
-    create: { name: 'Desserts & Drinks', displayOrder: 3 },
-  });
-
-  // Delete existing option groups & options to avoid duplication during seed re-runs
-  await prisma.optionGroup.deleteMany({});
-
-  const proteinGroup = await prisma.optionGroup.create({
-    data: {
-      name: 'Choose Your Protein',
-      isRequired: true,
-      displayOrder: 1,
-      usesPortions: false,
-      options: {
-        create: [
-          { name: 'Paneer Tikka', costPriceCents: 150, displayOrder: 1, allergensJson: JSON.stringify(['Dairy']), dietaryTagsJson: JSON.stringify([]) },
-          { name: 'Organic Tofu', costPriceCents: 120, displayOrder: 2, allergensJson: JSON.stringify([]), dietaryTagsJson: JSON.stringify(['Vegan', 'Gluten-Free']) },
-          { name: 'Spiced Chickpeas', costPriceCents: 100, displayOrder: 3, allergensJson: JSON.stringify([]), dietaryTagsJson: JSON.stringify(['Vegan', 'Jain']) },
-        ],
+  const [dishPaneerBowl, dishTofuWok, dishMediterraneanSalad, dishBerryParfait] = await Promise.all([
+    prisma.dish.upsert({
+      where: { sku: 'BWL-001' },
+      update: { name: 'Paneer & Grain Rice Bowl', costPriceCents: 450, stationId: stationGrill.id },
+      create: {
+        categoryId: catBowls.id,
+        name: 'Paneer & Grain Rice Bowl',
+        description: 'A wholesome meal box with grilled protein, spiced basmati grain, and fresh mint raita.',
+        sku: 'BWL-001',
+        temperature: DishTemperature.HOT,
+        costPriceCents: 450,
+        minOrderQuantity: 1,
+        isActive: true,
+        stationId: stationGrill.id,
+        allergensJson: JSON.stringify(['Dairy']),
+        dietaryTagsJson: JSON.stringify(['Gluten-Free']),
       },
-    },
-    include: { options: true },
-  });
-
-  const riceGroup = await prisma.optionGroup.create({
-    data: {
-      name: 'Choice of Grain',
-      isRequired: true,
-      displayOrder: 2,
-      usesPortions: true,
-      options: {
-        create: [
-          {
-            name: 'Brown Rice',
-            costPriceCents: 80,
-            displayOrder: 1,
-            portionPrices: {
-              create: [
-                { portionSize: 'Regular', extraCostCents: 0 },
-                { portionSize: 'Large', extraCostCents: 50 },
-              ],
-            },
-          },
-          {
-            name: 'Jeera Rice',
-            costPriceCents: 90,
-            displayOrder: 2,
-            portionPrices: {
-              create: [
-                { portionSize: 'Regular', extraCostCents: 0 },
-                { portionSize: 'Large', extraCostCents: 60 },
-              ],
-            },
-          },
-        ],
+    }),
+    prisma.dish.upsert({
+      where: { sku: 'BWL-002' },
+      update: { name: 'Teriyaki Tofu Wok Box', costPriceCents: 400, stationId: stationWok.id },
+      create: {
+        categoryId: catBowls.id,
+        name: 'Teriyaki Tofu Wok Box',
+        description: 'Wok-tossed organic tofu with sesame greens and brown rice.',
+        sku: 'BWL-002',
+        temperature: DishTemperature.HOT,
+        costPriceCents: 400,
+        minOrderQuantity: 1,
+        isActive: true,
+        stationId: stationWok.id,
+        allergensJson: JSON.stringify(['Soy']),
+        dietaryTagsJson: JSON.stringify(['Vegan', 'Gluten-Free']),
       },
-    },
-    include: { options: { include: { portionPrices: true } } },
-  });
-
-  const dishBowl = await prisma.dish.upsert({
-    where: { sku: 'BWL-001' },
-    update: {},
-    create: {
-      categoryId: catBowls.id,
-      name: 'Paneer & Grain Rice Bowl',
-      description: 'A wholesome meal box with grilled protein, spiced basmati grain, and fresh mint raita.',
-      sku: 'BWL-001',
-      temperature: DishTemperature.HOT,
-      costPriceCents: 450,
-      minOrderQuantity: 1,
-      isActive: true,
-      stationId: stationGrill.id,
-      allergensJson: JSON.stringify(['Dairy']),
-      dietaryTagsJson: JSON.stringify(['Gluten-Free']),
-      optionGroups: {
-        create: [
-          { optionGroupId: proteinGroup.id },
-          { optionGroupId: riceGroup.id },
-        ],
+    }),
+    prisma.dish.upsert({
+      where: { sku: 'SLD-001' },
+      update: { name: 'Mediterranean Chickpea Salad', costPriceCents: 350, stationId: stationCold.id },
+      create: {
+        categoryId: catSalads.id,
+        name: 'Mediterranean Chickpea Salad',
+        description: 'Crisp cucumbers, cherry tomatoes, kalamata olives, and spiced chickpeas with lemon tahini dressing.',
+        sku: 'SLD-001',
+        temperature: DishTemperature.COLD,
+        costPriceCents: 350,
+        minOrderQuantity: 1,
+        isActive: true,
+        stationId: stationCold.id,
+        allergensJson: JSON.stringify([]),
+        dietaryTagsJson: JSON.stringify(['Vegan', 'Jain', 'Gluten-Free']),
       },
-      tierPrices: {
-        create: [
-          { tierId: standardTier.id, priceCents: 1200, isOverride: false },
-          { tierId: enterpriseTier.id, priceCents: 1380, isOverride: false },
-          { tierId: partnerTier.id, priceCents: 1080, isOverride: false },
-        ],
+    }),
+    prisma.dish.upsert({
+      where: { sku: 'DST-001' },
+      update: { name: 'Wild Berry Chia Parfait', costPriceCents: 250, stationId: stationBakery.id },
+      create: {
+        categoryId: catDesserts.id,
+        name: 'Wild Berry Chia Parfait',
+        description: 'Layered coconut chia pudding with wild berry compote and almond crunch.',
+        sku: 'DST-001',
+        temperature: DishTemperature.COLD,
+        costPriceCents: 250,
+        minOrderQuantity: 1,
+        isActive: true,
+        stationId: stationBakery.id,
+        allergensJson: JSON.stringify(['Nuts']),
+        dietaryTagsJson: JSON.stringify(['Vegan', 'Gluten-Free']),
       },
-    },
-  });
+    }),
+  ]);
 
-  for (const opt of proteinGroup.options) {
-    await prisma.optionTierPrice.upsert({
-      where: { optionId_tierId: { optionId: opt.id, tierId: standardTier.id } },
-      update: {},
-      create: { optionId: opt.id, tierId: standardTier.id, priceCents: 200 },
-    });
+  // Dish Tier Prices
+  const dishes = [dishPaneerBowl, dishTofuWok, dishMediterraneanSalad, dishBerryParfait];
+  for (const d of dishes) {
+    await Promise.all([
+      prisma.dishTierPrice.upsert({
+        where: { dishId_tierId: { dishId: d.id, tierId: standardTier.id } },
+        update: { priceCents: Math.round(d.costPriceCents * 2.5) },
+        create: { dishId: d.id, tierId: standardTier.id, priceCents: Math.round(d.costPriceCents * 2.5), isOverride: false },
+      }),
+      prisma.dishTierPrice.upsert({
+        where: { dishId_tierId: { dishId: d.id, tierId: enterpriseTier.id } },
+        update: { priceCents: Math.round(d.costPriceCents * 2.5 * 1.15) },
+        create: { dishId: d.id, tierId: enterpriseTier.id, priceCents: Math.round(d.costPriceCents * 2.5 * 1.15), isOverride: false },
+      }),
+      prisma.dishTierPrice.upsert({
+        where: { dishId_tierId: { dishId: d.id, tierId: partnerTier.id } },
+        update: { priceCents: Math.round(d.costPriceCents * 2.4) },
+        create: { dishId: d.id, tierId: partnerTier.id, priceCents: Math.round(d.costPriceCents * 2.4), isOverride: false },
+      }),
+    ]);
   }
 
-  for (const opt of riceGroup.options) {
-    await prisma.optionTierPrice.upsert({
-      where: { optionId_tierId: { optionId: opt.id, tierId: standardTier.id } },
-      update: {},
-      create: { optionId: opt.id, tierId: standardTier.id, priceCents: 150 },
-    });
+  // 6. Companies & Addresses
+  const [companyAcme, companyTechNova, companyCyberdyne, companyFernleaf] = await Promise.all([
+    prisma.company.upsert({
+      where: { name: 'Acme Corp' },
+      update: { billingContact: 'billing@acme.com', defaultDriverId: driverUser.id, ownerId: adminUser.id },
+      create: {
+        name: 'Acme Corp',
+        billingContact: 'billing@acme.com',
+        priceTierId: standardTier.id,
+        workingDaysJson: JSON.stringify([1, 2, 3, 4, 5]),
+        defaultDeliveryTime: '12:30',
+        deliveryLeadMinutes: 60,
+        defaultPackaging: 'Eco Box',
+        driverInstructions: 'Leave with receptionist at front desk on 4th floor.',
+        defaultDriverId: driverUser.id,
+        ownerId: adminUser.id,
+      },
+    }),
+    prisma.company.upsert({
+      where: { name: 'TechNova Inc' },
+      update: { billingContact: 'finance@technova.io', defaultDriverId: driverUser.id, ownerId: adminUser.id },
+      create: {
+        name: 'TechNova Inc',
+        billingContact: 'finance@technova.io',
+        priceTierId: enterpriseTier.id,
+        workingDaysJson: JSON.stringify([1, 2, 3, 4, 5]),
+        defaultDeliveryTime: '13:00',
+        deliveryLeadMinutes: 45,
+        defaultPackaging: 'Premium Bento',
+        driverInstructions: 'Security check required at Tower B main gate.',
+        defaultDriverId: driverUser.id,
+        ownerId: adminUser.id,
+      },
+    }),
+    prisma.company.upsert({
+      where: { name: 'Cyberdyne Systems' },
+      update: { billingContact: 'accounts@cyberdyne.com', defaultDriverId: driverUser.id, ownerId: adminUser.id },
+      create: {
+        name: 'Cyberdyne Systems',
+        billingContact: 'accounts@cyberdyne.com',
+        priceTierId: partnerTier.id,
+        workingDaysJson: JSON.stringify([1, 2, 3, 4, 5]),
+        defaultDeliveryTime: '12:00',
+        deliveryLeadMinutes: 60,
+        defaultPackaging: 'Thermal Insulated Box',
+        driverInstructions: 'Deliver to loading dock 2.',
+        defaultDriverId: driverUser.id,
+        ownerId: adminUser.id,
+      },
+    }),
+    prisma.company.upsert({
+      where: { name: 'Fernleaf Global' },
+      update: { billingContact: 'ops@fernleaf.com', defaultDriverId: driverUser.id, ownerId: adminUser.id },
+      create: {
+        name: 'Fernleaf Global',
+        billingContact: 'ops@fernleaf.com',
+        priceTierId: standardTier.id,
+        workingDaysJson: JSON.stringify([1, 2, 3, 4, 5]),
+        defaultDeliveryTime: '12:15',
+        deliveryLeadMinutes: 30,
+        defaultPackaging: 'Eco Box',
+        driverInstructions: 'Ring doorbell at Suite 100.',
+        defaultDriverId: driverUser.id,
+        ownerId: adminUser.id,
+      },
+    }),
+  ]);
+
+  await Promise.all([
+    prisma.companyEmailDomain.upsert({ where: { domain: 'acme.com' }, update: {}, create: { companyId: companyAcme.id, domain: 'acme.com' } }),
+    prisma.companyEmailDomain.upsert({ where: { domain: 'technova.io' }, update: {}, create: { companyId: companyTechNova.id, domain: 'technova.io' } }),
+    prisma.companyEmailDomain.upsert({ where: { domain: 'cyberdyne.com' }, update: {}, create: { companyId: companyCyberdyne.id, domain: 'cyberdyne.com' } }),
+    prisma.companyEmailDomain.upsert({ where: { domain: 'fernleaf.com' }, update: {}, create: { companyId: companyFernleaf.id, domain: 'fernleaf.com' } }),
+  ]);
+
+  // Delivery Addresses
+  const [addrAcme, addrTechNova, addrCyberdyne, addrFernleaf] = await Promise.all([
+    prisma.deliveryAddress.findFirst({ where: { companyId: companyAcme.id } }).then(a => a || prisma.deliveryAddress.create({ data: { companyId: companyAcme.id, addressLine: '100 Innovation Way, Suite 400', city: 'Tech City', postalCode: '90001', notes: 'Loading bay in rear' } })),
+    prisma.deliveryAddress.findFirst({ where: { companyId: companyTechNova.id } }).then(a => a || prisma.deliveryAddress.create({ data: { companyId: companyTechNova.id, addressLine: '500 Cyber Park, Tower B', city: 'Metroville', postalCode: '90210' } })),
+    prisma.deliveryAddress.findFirst({ where: { companyId: companyCyberdyne.id } }).then(a => a || prisma.deliveryAddress.create({ data: { companyId: companyCyberdyne.id, addressLine: '101 Skynet Blvd', city: 'Silicon Valley', postalCode: '94025' } })),
+    prisma.deliveryAddress.findFirst({ where: { companyId: companyFernleaf.id } }).then(a => a || prisma.deliveryAddress.create({ data: { companyId: companyFernleaf.id, addressLine: '777 Fernleaf Gardens', city: 'San Francisco', postalCode: '94103' } })),
+  ]);
+
+  // 7. Seed 60+ Employees across Companies
+  console.log('Seeding 60+ employees with realistic permissions & dietary profiles...');
+
+  const firstNames = ['James', 'Mary', 'Robert', 'Patricia', 'John', 'Jennifer', 'Michael', 'Linda', 'David', 'Elizabeth', 'William', 'Barbara', 'Richard', 'Susan', 'Joseph', 'Jessica', 'Thomas', 'Sarah', 'Charles', 'Karen'];
+  const lastNames = ['Smith', 'Johnson', 'Williams', 'Brown', 'Jones', 'Garcia', 'Miller', 'Davis', 'Rodriguez', 'Martinez', 'Hernandez', 'Lopez', 'Gonzalez', 'Wilson', 'Anderson', 'Thomas', 'Taylor', 'Moore', 'Jackson', 'Martin'];
+
+  const compList = [
+    { id: companyAcme.id, domain: 'acme.com', count: 18 },
+    { id: companyTechNova.id, domain: 'technova.io', count: 18 },
+    { id: companyCyberdyne.id, domain: 'cyberdyne.com', count: 15 },
+    { id: companyFernleaf.id, domain: 'fernleaf.com', count: 15 },
+  ];
+
+  const empPromises: Array<Promise<any>> = [];
+  let totalEmpIdx = 1;
+
+  for (const comp of compList) {
+    for (let i = 1; i <= comp.count; i++) {
+      const fname = firstNames[(totalEmpIdx + i) % firstNames.length];
+      const lname = lastNames[(totalEmpIdx * 3 + i) % lastNames.length];
+      const email = `${fname.toLowerCase()}.${lname.toLowerCase()}${i}@${comp.domain}`;
+
+      const allergies = i % 4 === 0 ? ['Nuts'] : i % 5 === 0 ? ['Dairy'] : i % 7 === 0 ? ['Gluten'] : [];
+      const dietary = i % 3 === 0 ? ['Vegan'] : i % 6 === 0 ? ['Jain'] : i % 8 === 0 ? ['Gluten-Free'] : ['Vegetarian'];
+
+      empPromises.push(
+        prisma.employee.upsert({
+          where: { email },
+          update: {
+            companyId: comp.id,
+            name: `${fname} ${lname}`,
+            canChooseAddress: i % 2 === 0,
+            canChangeDeliveryTime: i % 3 === 0,
+            canChangePackaging: i % 4 === 0,
+            allergiesJson: JSON.stringify(allergies),
+            dietaryPreferencesJson: JSON.stringify(dietary),
+          },
+          create: {
+            companyId: comp.id,
+            name: `${fname} ${lname}`,
+            email,
+            canChooseAddress: i % 2 === 0,
+            canChangeDeliveryTime: i % 3 === 0,
+            canChangePackaging: i % 4 === 0,
+            allergiesJson: JSON.stringify(allergies),
+            dietaryPreferencesJson: JSON.stringify(dietary),
+          },
+        })
+      );
+      totalEmpIdx++;
+    }
   }
 
-  // 6. Companies & Employees
-  const companyAcme = await prisma.company.upsert({
-    where: { name: 'Acme Corp' },
-    update: {},
-    create: {
-      name: 'Acme Corp',
-      billingContact: 'billing@acme.com',
-      priceTierId: standardTier.id,
-      workingDaysJson: JSON.stringify([1, 2, 3, 4, 5]),
-      defaultDeliveryTime: '12:30',
-      deliveryLeadMinutes: 60,
-      defaultPackaging: 'Eco Box',
-      driverInstructions: 'Leave with receptionist at front desk.',
-      defaultDriverId: driverUser.id,
-      domains: {
-        create: [{ domain: 'acme.com' }],
-      },
-      addresses: {
-        create: [
-          { addressLine: '100 Innovation Way, Suite 400', city: 'Tech City', postalCode: '90001', notes: 'Loading bay in back' },
-        ],
-      },
-    },
-    include: { addresses: true },
-  });
+  const seededEmployeeList = await Promise.all(empPromises);
+  console.log(`✔ Successfully seeded ${seededEmployeeList.length} corporate employees!`);
 
-  await prisma.company.upsert({
-    where: { name: 'TechNova' },
-    update: {},
-    create: {
-      name: 'TechNova',
-      billingContact: 'finance@technova.io',
-      priceTierId: enterpriseTier.id,
-      workingDaysJson: JSON.stringify([1, 2, 3, 4, 5]),
-      defaultDeliveryTime: '13:00',
-      deliveryLeadMinutes: 45,
-      defaultPackaging: 'Premium Bento',
-      driverInstructions: 'Call 555-0199 upon arrival.',
-      defaultDriverId: driverUser.id,
-      domains: {
-        create: [{ domain: 'technova.io' }],
-      },
-      addresses: {
-        create: [
-          { addressLine: '500 Cyber Park, Tower B', city: 'Metroville', postalCode: '90210' },
-        ],
-      },
-    },
-    include: { addresses: true },
-  });
+  // 8. Seed Interconnected Orders, Drops, Prep Units & Invoices
+  console.log('Seeding operational orders across past dates, today, and future dates...');
 
-  const empAlice = await prisma.employee.upsert({
-    where: { email: 'alice@acme.com' },
-    update: {},
-    create: {
-      companyId: companyAcme.id,
-      name: 'Alice Smith',
-      email: 'alice@acme.com',
-      canChooseAddress: true,
-      canChangeDeliveryTime: true,
-      canChangePackaging: false,
-      allergiesJson: JSON.stringify(['Nuts']),
-      dietaryPreferencesJson: JSON.stringify(['Vegan']),
-    },
-  });
-
-  const empBob = await prisma.employee.upsert({
-    where: { email: 'bob@acme.com' },
-    update: {},
-    create: {
-      companyId: companyAcme.id,
-      name: 'Bob Jones',
-      email: 'bob@acme.com',
-      canChooseAddress: false,
-      canChangeDeliveryTime: false,
-      canChangePackaging: false,
-      allergiesJson: JSON.stringify([]),
-      dietaryPreferencesJson: JSON.stringify(['Jain']),
-    },
-  });
-
-  await prisma.company.update({
-    where: { id: companyAcme.id },
-    data: { ownerId: adminUser.id },
-  });
-
-  // 7. Seed Orders & Deliveries
   const today = new Date();
   today.setHours(0, 0, 0, 0);
 
-  const yesterday = new Date(today);
-  yesterday.setDate(today.getDate() - 1);
-
-  const tomorrow = new Date(today);
-  tomorrow.setDate(today.getDate() + 1);
-
-  const dropToday = await prisma.deliveryDrop.upsert({
-    where: {
-      companyId_addressId_deliveryDate_deliveryTime: {
-        companyId: companyAcme.id,
-        addressId: companyAcme.addresses[0].id,
-        deliveryDate: today,
-        deliveryTime: '12:30',
+  // Today Drop assigned to driver@test.com
+  const [dropTodayAcme, dropTodayTechNova] = await Promise.all([
+    prisma.deliveryDrop.upsert({
+      where: {
+        companyId_addressId_deliveryDate_deliveryTime: {
+          companyId: companyAcme.id,
+          addressId: addrAcme.id,
+          deliveryDate: today,
+          deliveryTime: '12:30',
+        },
       },
-    },
-    update: {
-      driverId: driverUser.id,
-      status: DropStatus.OUT_FOR_DELIVERY,
-    },
-    create: {
-      companyId: companyAcme.id,
-      addressId: companyAcme.addresses[0].id,
-      deliveryDate: today,
-      deliveryTime: '12:30',
-      status: DropStatus.OUT_FOR_DELIVERY,
-      driverId: driverUser.id,
-    },
-  });
+      update: { driverId: driverUser.id, status: DropStatus.OUT_FOR_DELIVERY },
+      create: { companyId: companyAcme.id, addressId: addrAcme.id, deliveryDate: today, deliveryTime: '12:30', status: DropStatus.OUT_FOR_DELIVERY, driverId: driverUser.id },
+    }),
+    prisma.deliveryDrop.upsert({
+      where: {
+        companyId_addressId_deliveryDate_deliveryTime: {
+          companyId: companyTechNova.id,
+          addressId: addrTechNova.id,
+          deliveryDate: today,
+          deliveryTime: '13:00',
+        },
+      },
+      update: { driverId: driverUser.id, status: DropStatus.DISPATCH_READY },
+      create: { companyId: companyTechNova.id, addressId: addrTechNova.id, deliveryDate: today, deliveryTime: '13:00', status: DropStatus.DISPATCH_READY, driverId: driverUser.id },
+    }),
+  ]);
 
-  // Clean old order data before re-seeding
-  await prisma.order.deleteMany({});
+  // Seed Orders
+  let orderNum = 1001;
+  for (let dayOffset = -5; dayOffset <= 7; dayOffset++) {
+    const orderDate = new Date(today);
+    orderDate.setDate(today.getDate() + dayOffset);
 
-  const orderToday = await prisma.order.create({
-    data: {
-      employeeId: empAlice.id,
-      deliveryAddressId: companyAcme.addresses[0].id,
-      deliveryDate: today,
-      deliveryTime: '12:30',
-      packagingType: 'Eco Box',
-      status: OrderStatus.CONFIRMED,
-      totalCents: 1550,
-      dropId: dropToday.id,
-      plannedDispatchReadyAt: new Date(today.getTime() + 11 * 3600 * 1000 + 30 * 60 * 1000),
-      plannedKitchenReadyAt: new Date(today.getTime() + 11 * 3600 * 1000),
-      kitchenStartedAt: new Date(today.getTime() + 10 * 3600 * 1000 + 15 * 60 * 1000),
-      lines: {
-        create: [
-          {
-            dishId: dishBowl.id,
-            dishName: dishBowl.name,
-            dishSku: dishBowl.sku,
+    const isPast = dayOffset < 0;
+    const isToday = dayOffset === 0;
+
+    const emp1 = seededEmployeeList[Math.abs(dayOffset * 3) % seededEmployeeList.length];
+    const emp2 = seededEmployeeList[Math.abs(dayOffset * 5 + 1) % seededEmployeeList.length];
+    const emps = [emp1, emp2];
+
+    for (let i = 0; i < emps.length; i++) {
+      const emp = emps[i];
+      if (!emp) continue;
+
+      let status = OrderStatus.PLACED;
+      let dropId: string | null = null;
+
+      if (isPast) {
+        status = OrderStatus.DELIVERED;
+      } else if (isToday) {
+        status = i === 0 ? OrderStatus.CONFIRMED : OrderStatus.PLACED;
+        dropId = emp.companyId === companyAcme.id ? dropTodayAcme.id : dropTodayTechNova.id;
+      }
+
+      let order = await prisma.order.findFirst({
+        where: { employeeId: emp.id, deliveryDate: orderDate },
+      });
+
+      if (!order) {
+        order = await prisma.order.create({
+          data: {
+            orderNumber: orderNum++,
+            employeeId: emp.id,
+            deliveryAddressId: emp.companyId === companyAcme.id ? addrAcme.id : addrTechNova.id,
+            deliveryDate: orderDate,
+            deliveryTime: '12:30',
+            packagingType: 'Eco Box',
+            status,
+            totalCents: 1550,
+            dropId,
+            plannedDispatchReadyAt: new Date(orderDate.getTime() + 11 * 3600 * 1000 + 30 * 60 * 1000),
+            plannedKitchenReadyAt: new Date(orderDate.getTime() + 11 * 3600 * 1000),
+            kitchenStartedAt: isToday || isPast ? new Date(orderDate.getTime() + 10 * 3600 * 1000) : null,
+            kitchenReadyAt: isPast ? new Date(orderDate.getTime() + 11 * 3600 * 1000) : null,
+          },
+        });
+      } else {
+        order = await prisma.order.update({
+          where: { id: order.id },
+          data: { status, dropId: dropId || undefined },
+        });
+      }
+
+      let orderLine = await prisma.orderLine.findFirst({ where: { orderId: order.id } });
+      if (!orderLine) {
+        orderLine = await prisma.orderLine.create({
+          data: {
+            orderId: order.id,
+            dishId: dishPaneerBowl.id,
+            dishName: dishPaneerBowl.name,
+            dishSku: dishPaneerBowl.sku,
             quantity: 1,
             unitPriceCents: 1550,
             totalCents: 1550,
-            combinations: {
-              create: [
-                {
-                  quantity: 1,
-                  unitPriceCents: 1550,
-                  totalCents: 1550,
-                  options: {
-                    create: [
-                      {
-                        optionId: proteinGroup.options[0].id,
-                        optionGroupName: proteinGroup.name,
-                        optionName: proteinGroup.options[0].name,
-                        priceCents: 200,
-                      },
-                      {
-                        optionId: riceGroup.options[0].id,
-                        optionGroupName: riceGroup.name,
-                        optionName: riceGroup.options[0].name,
-                        portionSize: 'Regular',
-                        priceCents: 150,
-                      },
-                    ],
-                  },
-                },
-              ],
-            },
           },
-        ],
-      },
-    },
-  });
+        });
+      }
 
-  // Create prep unit for orderToday combo
-  const combo = await prisma.orderLineCombination.findFirst({
-    where: { orderLine: { orderId: orderToday.id } },
-  });
+      let combo = await prisma.orderLineCombination.findFirst({ where: { orderLineId: orderLine.id } });
+      if (!combo) {
+        combo = await prisma.orderLineCombination.create({
+          data: {
+            orderLineId: orderLine.id,
+            quantity: 1,
+            unitPriceCents: 1550,
+            totalCents: 1550,
+          },
+        });
+      }
 
-  if (combo) {
-    await prisma.kitchenPrepUnit.create({
-      data: {
-        orderId: orderToday.id,
-        orderLineCombinationId: combo.id,
-        stationName: 'Grill Station',
-        status: PrepUnitStatus.STARTED,
-        startedAt: new Date(today.getTime() + 10 * 3600 * 1000 + 15 * 60 * 1000),
-      },
-    });
+      if (isToday || isPast) {
+        let prepUnit = await prisma.kitchenPrepUnit.findFirst({ where: { orderId: order.id } });
+        if (!prepUnit) {
+          await prisma.kitchenPrepUnit.create({
+            data: {
+              orderId: order.id,
+              orderLineCombinationId: combo.id,
+              stationName: 'Grill Station',
+              status: isPast ? PrepUnitStatus.DONE : PrepUnitStatus.STARTED,
+              startedAt: new Date(orderDate.getTime() + 10 * 3600 * 1000),
+              completedAt: isPast ? new Date(orderDate.getTime() + 11 * 3600 * 1000) : null,
+            },
+          });
+        }
+      }
+    }
   }
 
-  await prisma.order.create({
-    data: {
-      employeeId: empBob.id,
-      deliveryAddressId: companyAcme.addresses[0].id,
-      deliveryDate: yesterday,
-      deliveryTime: '12:30',
-      packagingType: 'Eco Box',
-      status: OrderStatus.DELIVERED,
-      totalCents: 1550,
-      lines: {
-        create: [
-          {
-            dishId: dishBowl.id,
-            dishName: dishBowl.name,
-            dishSku: dishBowl.sku,
-            quantity: 1,
-            unitPriceCents: 1550,
-            totalCents: 1550,
-          },
-        ],
-      },
-    },
-  });
+  // 9. Invoices
+  await Promise.all([
+    prisma.invoice.upsert({
+      where: { invoiceNumber: 'INV-2026-001' },
+      update: { totalCents: 12400, status: 'PAID' },
+      create: { invoiceNumber: 'INV-2026-001', companyId: companyAcme.id, totalCents: 12400, status: 'PAID', paidAt: new Date(today.getTime() - 2 * 24 * 3600 * 1000) },
+    }),
+    prisma.invoice.upsert({
+      where: { invoiceNumber: 'INV-2026-002' },
+      update: { totalCents: 9800, status: 'UNPAID' },
+      create: { invoiceNumber: 'INV-2026-002', companyId: companyTechNova.id, totalCents: 9800, status: 'UNPAID' },
+    }),
+  ]);
 
-  await prisma.order.create({
-    data: {
-      employeeId: empAlice.id,
-      deliveryAddressId: companyAcme.addresses[0].id,
-      deliveryDate: tomorrow,
-      deliveryTime: '12:30',
-      packagingType: 'Eco Box',
-      status: OrderStatus.PLACED,
-      totalCents: 1550,
-      lines: {
-        create: [
-          {
-            dishId: dishBowl.id,
-            dishName: dishBowl.name,
-            dishSku: dishBowl.sku,
-            quantity: 1,
-            unitPriceCents: 1550,
-            totalCents: 1550,
-          },
-        ],
-      },
-    },
-  });
-
-  console.log('Seeding completed successfully!');
+  console.log('✔ Operational data seeding completed cleanly!');
+  console.log('Summary:');
+  console.log(`- Staff Accounts: 4 mandatory verified`);
+  console.log(`- Corporate Companies: 4`);
+  console.log(`- Corporate Employees: ${seededEmployeeList.length}`);
+  console.log(`- Today active delivery drop assigned to driver@test.com: ${dropTodayAcme.id}`);
+  console.log(`- Seeding completed with 100% idempotency & non-destructive safety!`);
 }
 
 main()
