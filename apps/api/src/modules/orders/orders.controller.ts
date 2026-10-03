@@ -47,6 +47,11 @@ export class OrdersController {
     return this.ordersService.createOrder(userRole, body);
   }
 
+  @Put(':id')
+  async updateOrder(@Param('id') id: string, @GetUser('role') userRole: Role, @Body() body: any) {
+    return this.ordersService.updateOrder(id, userRole, body);
+  }
+
   @Roles(Role.ADMIN)
   @Post('process-cutoff')
   async processCutoff(@Body() body: { deliveryDate: string }) {

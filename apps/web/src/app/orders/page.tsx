@@ -21,6 +21,7 @@ import {
   Utensils,
   Trash2,
   Check,
+  Edit2,
 } from 'lucide-react';
 
 export default function OrdersPage() {
@@ -29,8 +30,11 @@ export default function OrdersPage() {
   const [selectedCompanyId, setSelectedCompanyId] = useState<string>('');
   const [page, setPage] = useState(1);
 
-  // New Order Modal State
+  // New / Edit Order Modal State
   const [isOrderModalOpen, setIsOrderModalOpen] = useState(false);
+  const [isEditing, setIsEditing] = useState(false);
+  const [editingOrderId, setEditingOrderId] = useState<string | null>(null);
+
   const [orderEmployeeId, setOrderEmployeeId] = useState('');
   const [orderDeliveryDate, setOrderDeliveryDate] = useState(new Date().toISOString().split('T')[0]);
   const [orderDeliveryTime, setOrderDeliveryTime] = useState('12:30');
@@ -77,10 +81,22 @@ export default function OrdersPage() {
       }),
     onSuccess: () => {
       queryClient.invalidateQueries({ queryKey: ['orders'] });
-      setIsOrderModalOpen(false);
-      setOrderLines([]);
-      setOrderEmployeeId('');
-      setSelectedDishId('');
+      closeModal();
+    },
+  });
+
+  const updateOrderMutation = useMutation({
+    mutationFn: (payload: { id: string; data: any }) =>
+      fetchApi(`/orders/${payload.id}`, {
+        method: 'PUT',
+        body: JSON.stringify(payload.data),
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
+      closeModal();
+    },
+    onError: (err: any) => {
+      alert(err.message || 'Failed to update order');
     },
   });
 
@@ -97,6 +113,60 @@ export default function OrdersPage() {
   });
 
   const formatUsd = (cents: number) => `$${(cents / 100).toFixed(2)}`;
+
+  const closeModal = () => {
+    setIsOrderModalOpen(false);
+    setIsEditing(false);
+    setEditingOrderId(null);
+    setOrderEmployeeId('');
+    setSelectedDishId('');
+    setSelectedOptionIds([]);
+    setOrderLines([]);
+    setComboQty(1);
+  };
+
+  /**
+   * Check if order is eligible for editing (within 30 minutes of creation & not delivered/cancelled/invoiced)
+   */
+  const getOrderEditEligibility = (ord: any) => {
+    if (ord.invoiceId || ord.status === 'DELIVERED' || ord.status === 'CANCELLED' || ord.status === 'REJECTED') {
+      return { eligible: false, remainingMins: 0 };
+    }
+    const createdTime = new Date(ord.createdAt).getTime();
+    const nowTime = new Date().getTime();
+    const elapsedMins = Math.floor((nowTime - createdTime) / (1000 * 60));
+    const remainingMins = Math.max(0, 30 - elapsedMins);
+    return {
+      eligible: remainingMins > 0,
+      remainingMins,
+    };
+  };
+
+  const handleOpenEditModal = (ord: any) => {
+    setIsEditing(true);
+    setEditingOrderId(ord.id);
+    setOrderEmployeeId(ord.employeeId);
+    setOrderDeliveryDate(new Date(ord.deliveryDate).toISOString().split('T')[0]);
+    setOrderDeliveryTime(ord.deliveryTime || '12:30');
+    setOrderPackaging(ord.packagingType || 'Eco Box');
+
+    // Pre-populate order lines
+    const formattedLines = ord.lines?.map((line: any) => ({
+      dishId: line.dishId,
+      dishName: line.dishName,
+      quantity: line.quantity,
+      unitPriceCents: line.unitPriceCents,
+      totalCents: line.totalCents,
+      combinations: line.combinations?.map((combo: any) => ({
+        quantity: combo.quantity,
+        options: combo.options?.map((opt: any) => ({ optionId: opt.optionId, name: opt.optionName })),
+        chosenOptionDetails: combo.options?.map((opt: any) => ({ name: opt.optionName })),
+      })),
+    }));
+
+    setOrderLines(formattedLines || []);
+    setIsOrderModalOpen(true);
+  };
 
   const addCombinationToOrder = () => {
     if (!selectedDishId) return;
@@ -140,7 +210,7 @@ export default function OrdersPage() {
       combinations: [
         {
           quantity: comboQty,
-          options: chosenOptions.map(o => ({ optionId: o.optionId })),
+          options: chosenOptions.map((o) => ({ optionId: o.optionId })),
           chosenOptionDetails: chosenOptions,
         },
       ],
@@ -162,7 +232,7 @@ export default function OrdersPage() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl font-extrabold text-slate-900">Order Management</h1>
-            <p className="text-sm text-slate-500 mt-1">Place employee meal orders, inspect historical price snapshots, and trigger cut-off processing.</p>
+            <p className="text-sm text-slate-500 mt-1">Place employee meal orders, inspect historical price snapshots, and edit orders within 30 minutes.</p>
           </div>
 
           <div className="flex items-center gap-3">
@@ -184,8 +254,7 @@ export default function OrdersPage() {
 
             <button
               onClick={() => {
-                setOrderEmployeeId('');
-                setOrderLines([]);
+                closeModal();
                 setIsOrderModalOpen(true);
               }}
               className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm rounded-lg flex items-center gap-2 shadow-sm transition"
@@ -245,59 +314,77 @@ export default function OrdersPage() {
                   <th className="p-4">Total</th>
                   <th className="p-4">Status</th>
                   <th className="p-4">Invoiced</th>
+                  <th className="p-4">Actions</th>
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100">
-                {ordersData?.orders?.map((ord: any) => (
-                  <tr key={ord.id} className="hover:bg-slate-50/50 transition">
-                    <td className="p-4 font-mono font-bold text-slate-900">#{ord.orderNumber}</td>
-                    <td className="p-4 font-semibold text-slate-900">{ord.employee?.name}</td>
-                    <td className="p-4 text-slate-700">{ord.employee?.company?.name}</td>
-                    <td className="p-4 text-xs text-slate-600">
-                      {new Date(ord.deliveryDate).toISOString().split('T')[0]} at {ord.deliveryTime}
-                    </td>
-                    <td className="p-4 font-bold text-emerald-700">{formatUsd(ord.totalCents)}</td>
-                    <td className="p-4">
-                      <span
-                        className={`px-2.5 py-1 text-xs font-bold rounded-full ${
-                          ord.status === 'CONFIRMED'
-                            ? 'bg-emerald-100 text-emerald-800'
-                            : ord.status === 'DELIVERED'
-                            ? 'bg-blue-100 text-blue-800'
-                            : ord.status === 'PLACED'
-                            ? 'bg-amber-100 text-amber-800'
-                            : 'bg-slate-100 text-slate-600'
-                        }`}
-                      >
-                        {ord.status}
-                      </span>
-                    </td>
-                    <td className="p-4">
-                      {ord.invoiceId ? (
-                        <span className="text-[10px] font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded">
-                          INVOICED
+                {ordersData?.orders?.map((ord: any) => {
+                  const editStatus = getOrderEditEligibility(ord);
+                  return (
+                    <tr key={ord.id} className="hover:bg-slate-50/50 transition">
+                      <td className="p-4 font-mono font-bold text-slate-900">#{ord.orderNumber}</td>
+                      <td className="p-4 font-semibold text-slate-900">{ord.employee?.name}</td>
+                      <td className="p-4 text-slate-700">{ord.employee?.company?.name}</td>
+                      <td className="p-4 text-xs text-slate-600">
+                        {new Date(ord.deliveryDate).toISOString().split('T')[0]} at {ord.deliveryTime}
+                      </td>
+                      <td className="p-4 font-bold text-emerald-700">{formatUsd(ord.totalCents)}</td>
+                      <td className="p-4">
+                        <span
+                          className={`px-2.5 py-1 text-xs font-bold rounded-full ${
+                            ord.status === 'CONFIRMED'
+                              ? 'bg-emerald-100 text-emerald-800'
+                              : ord.status === 'DELIVERED'
+                              ? 'bg-blue-100 text-blue-800'
+                              : ord.status === 'PLACED'
+                              ? 'bg-amber-100 text-amber-800'
+                              : 'bg-slate-100 text-slate-600'
+                          }`}
+                        >
+                          {ord.status}
                         </span>
-                      ) : (
-                        <span className="text-[10px] font-bold text-slate-400">UNINVOICED</span>
-                      )}
-                    </td>
-                  </tr>
-                ))}
+                      </td>
+                      <td className="p-4">
+                        {ord.invoiceId ? (
+                          <span className="text-[10px] font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded">
+                            INVOICED
+                          </span>
+                        ) : (
+                          <span className="text-[10px] font-bold text-slate-400">UNINVOICED</span>
+                        )}
+                      </td>
+                      <td className="p-4">
+                        {editStatus.eligible ? (
+                          <button
+                            onClick={() => handleOpenEditModal(ord)}
+                            className="px-2.5 py-1.5 bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-100 text-xs font-semibold rounded-lg flex items-center gap-1 transition"
+                          >
+                            <Edit2 className="w-3.5 h-3.5" /> Edit ({editStatus.remainingMins}m left)
+                          </button>
+                        ) : (
+                          <span className="text-[11px] text-slate-400 font-medium">Locked</span>
+                        )}
+                      </td>
+                    </tr>
+                  );
+                })}
               </tbody>
             </table>
           )}
         </div>
 
-        {/* Create Order Modal */}
+        {/* Create / Edit Order Modal */}
         {isOrderModalOpen && (
           <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
             <div className="bg-white rounded-2xl max-w-4xl w-full p-6 shadow-2xl space-y-4 max-h-[92vh] flex flex-col">
               <div className="flex items-center justify-between border-b border-slate-100 pb-3">
                 <div className="flex items-center gap-2">
                   <ShoppingBag className="w-5 h-5 text-emerald-600" />
-                  <h3 className="font-bold text-slate-900 text-base">Place Order on Behalf of Employee</h3>
+                  <h3 className="font-bold text-slate-900 text-base">
+                    {isEditing ? `Edit Order #${ordersData?.orders?.find((o: any) => o.id === editingOrderId)?.orderNumber || ''}` : 'Place Order on Behalf of Employee'}
+                  </h3>
                 </div>
-                <button onClick={() => setIsOrderModalOpen(false)} className="text-slate-400 font-bold p-1 hover:text-slate-600">
+                <button onClick={closeModal} className="text-slate-400 font-bold p-1 hover:text-slate-600">
                   ✕
                 </button>
               </div>
@@ -314,12 +401,18 @@ export default function OrdersPage() {
                     <div className="sm:col-span-1">
                       <label className="block font-semibold text-slate-700 mb-1">Customer Employee *</label>
                       <select
+                        disabled={isEditing}
                         value={orderEmployeeId}
                         onChange={(e) => {
-                          setOrderEmployeeId(e.target.value);
+                          const newEmpId = e.target.value;
+                          setOrderEmployeeId(newEmpId);
+                          // CRITICAL FIX: Reset all selected dishes, option choices, and staged order lines on employee change
                           setSelectedDishId('');
+                          setSelectedOptionIds([]);
+                          setComboQty(1);
+                          setOrderLines([]);
                         }}
-                        className="w-full p-2.5 rounded-lg border border-slate-300 text-xs focus:ring-2 focus:ring-emerald-500/20 bg-white"
+                        className="w-full p-2.5 rounded-lg border border-slate-300 text-xs focus:ring-2 focus:ring-emerald-500/20 bg-white disabled:bg-slate-100"
                       >
                         <option value="">-- Choose Employee --</option>
                         {employees?.map((emp: any) => (
@@ -359,11 +452,11 @@ export default function OrdersPage() {
                     <Sparkles className="w-8 h-8 mx-auto text-indigo-500" />
                     <p className="font-bold text-slate-800 text-sm">Please select a Customer Employee above</p>
                     <p className="text-slate-500 text-xs max-w-md mx-auto">
-                      Selecting an employee automatically resolves their company's price tier, menu availability, and custom option groups.
+                      Selecting an employee automatically resolves their company's price tier (Standard, Enterprise, or Partner), menu availability, and custom option groups.
                     </p>
                   </div>
                 ) : menuLoading ? (
-                  <div className="p-8 text-center text-slate-500">Loading custom menu catalogue for employee...</div>
+                  <div className="p-8 text-center text-slate-500">Loading custom company menu catalogue & price tier...</div>
                 ) : (
                   /* Step 2: Catalogue & Dishes Browser */
                   <div className="space-y-4">
@@ -560,25 +653,43 @@ export default function OrdersPage() {
                   {orderLines.length > 0 && `Total: ${formatUsd(calculateOrderGrandTotal())}`}
                 </span>
                 <div className="flex gap-2">
-                  <button type="button" onClick={() => setIsOrderModalOpen(false)} className="px-4 py-2 text-slate-600 font-semibold text-xs">
+                  <button type="button" onClick={closeModal} className="px-4 py-2 text-slate-600 font-semibold text-xs">
                     Cancel
                   </button>
                   <button
                     type="button"
-                    disabled={!orderEmployeeId || orderLines.length === 0 || createOrderMutation.isPending}
-                    onClick={() =>
-                      createOrderMutation.mutate({
-                        employeeId: orderEmployeeId,
-                        deliveryDate: orderDeliveryDate,
-                        deliveryTime: orderDeliveryTime,
-                        packagingType: orderPackaging,
-                        status: 'PLACED',
-                        lines: orderLines,
-                      })
-                    }
+                    disabled={!orderEmployeeId || orderLines.length === 0 || createOrderMutation.isPending || updateOrderMutation.isPending}
+                    onClick={() => {
+                      if (isEditing && editingOrderId) {
+                        updateOrderMutation.mutate({
+                          id: editingOrderId,
+                          data: {
+                            deliveryDate: orderDeliveryDate,
+                            deliveryTime: orderDeliveryTime,
+                            packagingType: orderPackaging,
+                            lines: orderLines,
+                          },
+                        });
+                      } else {
+                        createOrderMutation.mutate({
+                          employeeId: orderEmployeeId,
+                          deliveryDate: orderDeliveryDate,
+                          deliveryTime: orderDeliveryTime,
+                          packagingType: orderPackaging,
+                          status: 'PLACED',
+                          lines: orderLines,
+                        });
+                      }
+                    }}
                     className="px-4.5 py-2 bg-emerald-600 text-white font-semibold text-xs rounded-lg hover:bg-emerald-700 disabled:opacity-50 transition shadow-sm"
                   >
-                    {createOrderMutation.isPending ? 'Placing Order...' : 'Place Order Now'}
+                    {isEditing
+                      ? updateOrderMutation.isPending
+                        ? 'Updating Order...'
+                        : 'Save Changes'
+                      : createOrderMutation.isPending
+                      ? 'Placing Order...'
+                      : 'Place Order Now'}
                   </button>
                 </div>
               </div>

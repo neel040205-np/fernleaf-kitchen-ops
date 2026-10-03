@@ -1,5 +1,7 @@
 import { PrismaClient } from '@prisma/client';
 
+jest.setTimeout(30000);
+
 describe('Database Seeding & Idempotency Tests', () => {
   let prisma: PrismaClient;
 

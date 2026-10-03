@@ -427,6 +427,210 @@ export class OrdersService {
   }
 
   /**
+   * Edit an existing order within 30 minutes of placement
+   */
+  async updateOrder(
+    orderId: string,
+    userRole: Role,
+    data: {
+      deliveryAddressId?: string;
+      deliveryDate?: string;
+      deliveryTime?: string;
+      packagingType?: string;
+      lines?: Array<{
+        dishId: string;
+        quantity: number;
+        combinations: Array<{
+          quantity: number;
+          options: Array<{
+            optionId: string;
+            portionSize?: string;
+          }>;
+        }>;
+      }>;
+    },
+  ) {
+    const existingOrder = await this.prisma.order.findUnique({
+      where: { id: orderId },
+      include: { employee: { include: { company: { include: { addresses: true } } } } },
+    });
+
+    if (!existingOrder) throw new NotFoundException('Order not found');
+
+    if (existingOrder.invoiceId) {
+      throw new BadRequestException('Cannot edit an order that has already been invoiced.');
+    }
+
+    if (['DELIVERED', 'CANCELLED', 'REJECTED'].includes(existingOrder.status)) {
+      throw new BadRequestException(`Cannot edit an order with status ${existingOrder.status}.`);
+    }
+
+    // Enforce 30-minute editing window for non-admin users
+    const now = new Date();
+    const elapsedMinutes = (now.getTime() - existingOrder.createdAt.getTime()) / (1000 * 60);
+
+    if (elapsedMinutes > 30 && userRole !== Role.ADMIN) {
+      throw new ForbiddenException(
+        `Orders can only be edited within 30 minutes of placement. This order was placed ${Math.floor(
+          elapsedMinutes,
+        )} minutes ago.`,
+      );
+    }
+
+    const employee = existingOrder.employee;
+    const deliveryDateStr = data.deliveryDate || existingOrder.deliveryDate.toISOString().split('T')[0];
+    const deliveryDateObj = new Date(deliveryDateStr);
+
+    const addressId = data.deliveryAddressId || existingOrder.deliveryAddressId;
+    const deliveryTime = data.deliveryTime || existingOrder.deliveryTime;
+    const packagingType = data.packagingType || existingOrder.packagingType;
+
+    const resolvedTierId =
+      employee.company.priceTierId || (await this.prisma.priceTier.findFirst({ where: { isDefault: true } }))?.id;
+    if (!resolvedTierId) throw new BadRequestException('No valid price tier resolved');
+
+    // Calculate Planned Ready Times
+    const [delH, delM] = deliveryTime.split(':').map(Number);
+    const plannedDeliveryDateTime = new Date(deliveryDateObj);
+    plannedDeliveryDateTime.setHours(delH, delM, 0, 0);
+
+    const leadMins = employee.company.deliveryLeadMinutes || 60;
+    const plannedDispatchReadyAt = new Date(plannedDeliveryDateTime.getTime() - leadMins * 60 * 1000);
+    const plannedKitchenReadyAt = new Date(plannedDispatchReadyAt.getTime() - 30 * 60 * 1000);
+
+    let orderTotalCents = existingOrder.totalCents;
+
+    // If new lines provided, replace existing order lines
+    if (data.lines && data.lines.length > 0) {
+      orderTotalCents = 0;
+      const lineCreations = [];
+
+      for (const line of data.lines) {
+        const dish = await this.prisma.dish.findUnique({
+          where: { id: line.dishId },
+          include: { optionGroups: { include: { optionGroup: { include: { options: true } } } } },
+        });
+
+        if (!dish || !dish.isActive) {
+          throw new BadRequestException(`Dish ${line.dishId} is invalid or inactive`);
+        }
+
+        const dishPriceCents = await this.pricingService.resolveDishPriceForTier(dish.id, resolvedTierId);
+        if (dishPriceCents === null || dishPriceCents <= 0) {
+          throw new BadRequestException(`Dish ${dish.name} is not priced for employee company tier`);
+        }
+
+        const comboQtySum = line.combinations.reduce((sum, c) => sum + c.quantity, 0);
+        if (comboQtySum !== line.quantity) {
+          throw new BadRequestException(
+            `Combination quantities sum (${comboQtySum}) must equal dish line quantity (${line.quantity})`,
+          );
+        }
+
+        let lineTotalCents = 0;
+        const comboCreations = [];
+
+        for (const combo of line.combinations) {
+          let comboUnitPriceCents = dishPriceCents;
+          const optionCreations = [];
+
+          const requiredGroups = dish.optionGroups.filter((og) => og.optionGroup.isRequired);
+          const chosenGroupIds = new Set<string>();
+
+          for (const optChoice of combo.options) {
+            const option = await this.prisma.option.findUnique({
+              where: { id: optChoice.optionId },
+              include: { optionGroup: true, portionPrices: true },
+            });
+
+            if (!option) throw new BadRequestException(`Option ${optChoice.optionId} not found`);
+
+            chosenGroupIds.add(option.optionGroupId);
+            let optPriceCents = await this.pricingService.resolveOptionPriceForTier(option.id, resolvedTierId);
+
+            if (option.optionGroup.usesPortions && optChoice.portionSize) {
+              const pp = option.portionPrices.find((p) => p.portionSize === optChoice.portionSize);
+              if (pp) optPriceCents += pp.extraCostCents;
+            }
+
+            comboUnitPriceCents += optPriceCents;
+
+            optionCreations.push({
+              optionId: option.id,
+              optionGroupName: option.optionGroup.name,
+              optionName: option.name,
+              portionSize: optChoice.portionSize || null,
+              priceCents: optPriceCents,
+            });
+          }
+
+          for (const reqGroup of requiredGroups) {
+            if (!chosenGroupIds.has(reqGroup.optionGroupId)) {
+              throw new BadRequestException(
+                `Combination must satisfy required option group "${reqGroup.optionGroup.name}"`,
+              );
+            }
+          }
+
+          const comboTotalCents = comboUnitPriceCents * combo.quantity;
+          lineTotalCents += comboTotalCents;
+
+          comboCreations.push({
+            quantity: combo.quantity,
+            unitPriceCents: comboUnitPriceCents,
+            totalCents: comboTotalCents,
+            options: { create: optionCreations },
+          });
+        }
+
+        orderTotalCents += lineTotalCents;
+
+        lineCreations.push({
+          dishId: dish.id,
+          dishName: dish.name,
+          dishSku: dish.sku,
+          quantity: line.quantity,
+          unitPriceCents: Math.round(lineTotalCents / line.quantity),
+          totalCents: lineTotalCents,
+          combinations: { create: comboCreations },
+        });
+      }
+
+      // Delete existing lines
+      await this.prisma.orderLine.deleteMany({ where: { orderId } });
+
+      // Create new lines
+      await this.prisma.order.update({
+        where: { id: orderId },
+        data: {
+          deliveryAddressId: addressId,
+          deliveryDate: deliveryDateObj,
+          deliveryTime,
+          packagingType,
+          totalCents: orderTotalCents,
+          plannedDispatchReadyAt,
+          plannedKitchenReadyAt,
+          lines: { create: lineCreations },
+        },
+      });
+    } else {
+      await this.prisma.order.update({
+        where: { id: orderId },
+        data: {
+          deliveryAddressId: addressId,
+          deliveryDate: deliveryDateObj,
+          deliveryTime,
+          packagingType,
+          plannedDispatchReadyAt,
+          plannedKitchenReadyAt,
+        },
+      });
+    }
+
+    return this.getOrderById(orderId);
+  }
+
+  /**
    * Cut-off processing trigger for a given date
    * - Sets DRAFT orders for date to CANCELLED
    * - Sets PLACED orders for date to CONFIRMED
