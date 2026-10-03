@@ -16,6 +16,11 @@ import {
   AlertCircle,
   ChevronRight,
   Sparkles,
+  Flame,
+  Snowflake,
+  Utensils,
+  Trash2,
+  Check,
 } from 'lucide-react';
 
 export default function OrdersPage() {
@@ -58,7 +63,7 @@ export default function OrdersPage() {
     queryFn: () => fetchApi('/employees'),
   });
 
-  const { data: menuPreview } = useQuery({
+  const { data: menuPreview, isLoading: menuLoading } = useQuery({
     queryKey: ['menuPreviewOrder', orderEmployeeId],
     queryFn: () => fetchApi(`/orders/menu-preview?employeeId=${orderEmployeeId}`),
     enabled: !!orderEmployeeId && isOrderModalOpen,
@@ -74,6 +79,8 @@ export default function OrdersPage() {
       queryClient.invalidateQueries({ queryKey: ['orders'] });
       setIsOrderModalOpen(false);
       setOrderLines([]);
+      setOrderEmployeeId('');
+      setSelectedDishId('');
     },
   });
 
@@ -106,43 +113,60 @@ export default function OrdersPage() {
     if (!targetDish) return;
 
     const chosenOptions = [];
+    let optionTotalCents = 0;
     for (const og of targetDish.optionGroups || []) {
       for (const opt of og.options || []) {
         if (selectedOptionIds.includes(opt.id)) {
           chosenOptions.push({
             optionId: opt.id,
+            name: opt.name,
+            groupName: og.name,
+            priceCents: opt.resolvedPriceCents || 0,
           });
+          optionTotalCents += opt.resolvedPriceCents || 0;
         }
       }
     }
+
+    const unitPriceCents = (targetDish.resolvedPriceCents || 0) + optionTotalCents;
+    const lineTotalCents = unitPriceCents * comboQty;
 
     const newLine = {
       dishId: targetDish.id,
       dishName: targetDish.name,
       quantity: comboQty,
+      unitPriceCents,
+      totalCents: lineTotalCents,
       combinations: [
         {
           quantity: comboQty,
-          options: chosenOptions,
+          options: chosenOptions.map(o => ({ optionId: o.optionId })),
+          chosenOptionDetails: chosenOptions,
         },
       ],
     };
 
     setOrderLines([...orderLines, newLine]);
+    setSelectedDishId('');
     setSelectedOptionIds([]);
+    setComboQty(1);
+  };
+
+  const calculateOrderGrandTotal = () => {
+    return orderLines.reduce((sum, line) => sum + (line.totalCents || 0), 0);
   };
 
   return (
     <AppLayout>
       <div className="space-y-6">
-        <div className="flex items-center justify-between">
+        <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl font-extrabold text-slate-900">Order Management</h1>
             <p className="text-sm text-slate-500 mt-1">Place employee meal orders, inspect historical price snapshots, and trigger cut-off processing.</p>
           </div>
 
           <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 bg-white border border-slate-200 p-1.5 rounded-lg">
+            <div className="flex items-center gap-2 bg-white border border-slate-200 p-1.5 rounded-lg shadow-sm">
               <input
                 type="date"
                 value={cutoffDate}
@@ -159,7 +183,11 @@ export default function OrdersPage() {
             </div>
 
             <button
-              onClick={() => setIsOrderModalOpen(true)}
+              onClick={() => {
+                setOrderEmployeeId('');
+                setOrderLines([]);
+                setIsOrderModalOpen(true);
+              }}
               className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm rounded-lg flex items-center gap-2 shadow-sm transition"
             >
               <Plus className="w-4 h-4" /> Place New Order
@@ -263,84 +291,172 @@ export default function OrdersPage() {
         {/* Create Order Modal */}
         {isOrderModalOpen && (
           <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl space-y-4 max-h-[90vh] flex flex-col">
+            <div className="bg-white rounded-2xl max-w-4xl w-full p-6 shadow-2xl space-y-4 max-h-[92vh] flex flex-col">
               <div className="flex items-center justify-between border-b border-slate-100 pb-3">
-                <h3 className="font-bold text-slate-900 text-base">Staff Create Order on Behalf of Employee</h3>
-                <button onClick={() => setIsOrderModalOpen(false)} className="text-slate-400 font-bold">
+                <div className="flex items-center gap-2">
+                  <ShoppingBag className="w-5 h-5 text-emerald-600" />
+                  <h3 className="font-bold text-slate-900 text-base">Place Order on Behalf of Employee</h3>
+                </div>
+                <button onClick={() => setIsOrderModalOpen(false)} className="text-slate-400 font-bold p-1 hover:text-slate-600">
                   ✕
                 </button>
               </div>
 
-              <div className="space-y-3 text-xs overflow-y-auto flex-1 p-1">
-                <div className="grid grid-cols-2 gap-3">
-                  <div>
-                    <label className="block font-semibold text-slate-700 mb-1">Select Customer Employee</label>
-                    <select
-                      value={orderEmployeeId}
-                      onChange={(e) => setOrderEmployeeId(e.target.value)}
-                      className="w-full p-2.5 rounded border border-slate-300 text-sm"
-                    >
-                      <option value="">-- Choose Employee --</option>
-                      {employees?.map((emp: any) => (
-                        <option key={emp.id} value={emp.id}>
-                          {emp.name} ({emp.company?.name})
-                        </option>
-                      ))}
-                    </select>
-                  </div>
-                  <div>
-                    <label className="block font-semibold text-slate-700 mb-1">Delivery Date</label>
-                    <input
-                      type="date"
-                      value={orderDeliveryDate}
-                      onChange={(e) => setOrderDeliveryDate(e.target.value)}
-                      className="w-full p-2.5 rounded border border-slate-300 text-sm"
-                    />
+              <div className="space-y-4 text-xs overflow-y-auto pr-1 flex-1">
+                {/* Step 1: Employee & Delivery Logistics */}
+                <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
+                  <p className="font-bold text-slate-900 text-xs flex items-center gap-1.5">
+                    <Building2 className="w-4 h-4 text-indigo-600" />
+                    Step 1: Select Employee & Delivery Details
+                  </p>
+
+                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                    <div className="sm:col-span-1">
+                      <label className="block font-semibold text-slate-700 mb-1">Customer Employee *</label>
+                      <select
+                        value={orderEmployeeId}
+                        onChange={(e) => {
+                          setOrderEmployeeId(e.target.value);
+                          setSelectedDishId('');
+                        }}
+                        className="w-full p-2.5 rounded-lg border border-slate-300 text-xs focus:ring-2 focus:ring-emerald-500/20 bg-white"
+                      >
+                        <option value="">-- Choose Employee --</option>
+                        {employees?.map((emp: any) => (
+                          <option key={emp.id} value={emp.id}>
+                            {emp.name} ({emp.company?.name || 'No Company'})
+                          </option>
+                        ))}
+                      </select>
+                    </div>
+
+                    <div>
+                      <label className="block font-semibold text-slate-700 mb-1">Delivery Date *</label>
+                      <input
+                        type="date"
+                        value={orderDeliveryDate}
+                        onChange={(e) => setOrderDeliveryDate(e.target.value)}
+                        className="w-full p-2.5 rounded-lg border border-slate-300 text-xs bg-white"
+                      />
+                    </div>
+
+                    <div>
+                      <label className="block font-semibold text-slate-700 mb-1">Delivery Time *</label>
+                      <input
+                        type="text"
+                        value={orderDeliveryTime}
+                        onChange={(e) => setOrderDeliveryTime(e.target.value)}
+                        placeholder="12:30"
+                        className="w-full p-2.5 rounded-lg border border-slate-300 text-xs bg-white"
+                      />
+                    </div>
                   </div>
                 </div>
 
-                {menuPreview && (
-                  <div className="p-3 bg-indigo-50/50 border border-indigo-100 rounded-lg space-y-2">
-                    <p className="font-bold text-indigo-900 text-xs">Employee Menu Options Available:</p>
-                    <div className="grid grid-cols-2 gap-2">
-                      <div>
-                        <label className="block text-[11px] font-semibold text-slate-700">Select Dish</label>
-                        <select
-                          value={selectedDishId}
-                          onChange={(e) => setSelectedDishId(e.target.value)}
-                          className="w-full p-2 rounded border border-slate-300 text-xs"
-                        >
-                          <option value="">-- Choose Dish --</option>
-                          {menuPreview.categories?.flatMap((c: any) =>
-                            c.dishes?.map((d: any) => (
-                              <option key={d.id} value={d.id}>
-                                {d.name} ({formatUsd(d.resolvedPriceCents)})
-                              </option>
-                            )),
-                          )}
-                        </select>
-                      </div>
-                      <div>
-                        <label className="block text-[11px] font-semibold text-slate-700">Dish Quantity</label>
-                        <input
-                          type="number"
-                          min={1}
-                          value={comboQty}
-                          onChange={(e) => setComboQty(parseInt(e.target.value, 10))}
-                          className="w-full p-2 rounded border border-slate-300 text-xs"
-                        />
-                      </div>
+                {/* Callout if Employee not selected */}
+                {!orderEmployeeId ? (
+                  <div className="p-6 rounded-xl border-2 border-dashed border-indigo-200 bg-indigo-50/40 text-center space-y-2">
+                    <Sparkles className="w-8 h-8 mx-auto text-indigo-500" />
+                    <p className="font-bold text-slate-800 text-sm">Please select a Customer Employee above</p>
+                    <p className="text-slate-500 text-xs max-w-md mx-auto">
+                      Selecting an employee automatically resolves their company's price tier, menu availability, and custom option groups.
+                    </p>
+                  </div>
+                ) : menuLoading ? (
+                  <div className="p-8 text-center text-slate-500">Loading custom menu catalogue for employee...</div>
+                ) : (
+                  /* Step 2: Catalogue & Dishes Browser */
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <p className="font-bold text-slate-900 text-xs flex items-center gap-1.5">
+                        <Utensils className="w-4 h-4 text-emerald-600" />
+                        Step 2: Browse Menu Catalogue ({menuPreview?.employee?.companyName} • {menuPreview?.categories?.reduce((acc: number, c: any) => acc + (c.dishes?.length || 0), 0)} Available Dishes)
+                      </p>
                     </div>
 
+                    {/* Dish Categories Accordion / Grid */}
+                    <div className="space-y-4">
+                      {menuPreview?.categories?.map((cat: any) => (
+                        <div key={cat.id} className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm">
+                          <div className="bg-slate-100/80 px-4 py-2.5 border-b border-slate-200 flex items-center justify-between">
+                            <span className="font-extrabold text-slate-800 text-xs uppercase tracking-wider">
+                              {cat.name} ({cat.dishes?.length || 0} items)
+                            </span>
+                          </div>
+
+                          <div className="p-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                            {cat.dishes?.map((dish: any) => {
+                              const isSelected = selectedDishId === dish.id;
+                              return (
+                                <div
+                                  key={dish.id}
+                                  onClick={() => {
+                                    setSelectedDishId(dish.id);
+                                    setSelectedOptionIds([]);
+                                  }}
+                                  className={`p-3.5 rounded-xl border transition cursor-pointer flex flex-col justify-between gap-2 ${
+                                    isSelected
+                                      ? 'border-emerald-600 bg-emerald-50/40 shadow-sm ring-2 ring-emerald-500/20'
+                                      : 'border-slate-200 hover:border-slate-300 bg-white'
+                                  }`}
+                                >
+                                  <div>
+                                    <div className="flex items-start justify-between gap-2">
+                                      <h4 className="font-bold text-slate-900 text-xs">{dish.name}</h4>
+                                      <span className="font-extrabold text-emerald-700 text-xs shrink-0">
+                                        {formatUsd(dish.resolvedPriceCents)}
+                                      </span>
+                                    </div>
+                                    <p className="text-[11px] text-slate-500 mt-1 line-clamp-2">{dish.description}</p>
+                                  </div>
+
+                                  <div className="flex flex-wrap items-center gap-1.5 pt-1 text-[10px]">
+                                    {dish.temperature === 'HOT' ? (
+                                      <span className="px-1.5 py-0.5 bg-amber-50 text-amber-700 font-bold rounded flex items-center gap-0.5">
+                                        <Flame className="w-3 h-3" /> HOT
+                                      </span>
+                                    ) : (
+                                      <span className="px-1.5 py-0.5 bg-blue-50 text-blue-700 font-bold rounded flex items-center gap-0.5">
+                                        <Snowflake className="w-3 h-3" /> COLD
+                                      </span>
+                                    )}
+
+                                    {dish.allergens?.map((alg: string) => (
+                                      <span key={alg} className="px-1.5 py-0.5 bg-rose-50 text-rose-700 font-medium rounded">
+                                        {alg}
+                                      </span>
+                                    ))}
+
+                                    {dish.dietaryTags?.map((tag: string) => (
+                                      <span key={tag} className="px-1.5 py-0.5 bg-emerald-50 text-emerald-800 font-medium rounded">
+                                        {tag}
+                                      </span>
+                                    ))}
+                                  </div>
+                                </div>
+                              );
+                            })}
+                          </div>
+                        </div>
+                      ))}
+                    </div>
+
+                    {/* Dish Option Customizer Block */}
                     {selectedDishId && (
-                      <div className="space-y-2 pt-2 border-t border-indigo-100">
-                        <p className="text-[11px] font-bold text-slate-700">Select Option Choices:</p>
-                        {menuPreview.categories
+                      <div className="bg-indigo-50/60 border border-indigo-200 rounded-xl p-4 space-y-3">
+                        <div className="flex items-center justify-between border-b border-indigo-100 pb-2">
+                          <span className="font-bold text-indigo-950 text-xs">Customize Selected Dish Options:</span>
+                          <span className="text-slate-500 text-[11px]">Select protein, grain, dressing, or portions</span>
+                        </div>
+
+                        {menuPreview?.categories
                           ?.flatMap((c: any) => c.dishes)
                           .find((d: any) => d?.id === selectedDishId)
                           ?.optionGroups?.map((og: any) => (
-                            <div key={og.id} className="text-[11px] space-y-1">
-                              <span className="font-semibold text-slate-800">{og.name}:</span>
+                            <div key={og.id} className="space-y-1.5">
+                              <span className="font-semibold text-slate-800 text-xs">
+                                {og.name} {og.isRequired && <span className="text-rose-600">*</span>}:
+                              </span>
                               <div className="flex flex-wrap gap-2">
                                 {og.options?.map((opt: any) => {
                                   const isSelected = selectedOptionIds.includes(opt.id);
@@ -355,13 +471,14 @@ export default function OrdersPage() {
                                           setSelectedOptionIds([...selectedOptionIds, opt.id]);
                                         }
                                       }}
-                                      className={`px-2 py-1 rounded border text-[10px] font-semibold transition ${
+                                      className={`px-3 py-1.5 rounded-lg border text-xs font-semibold transition flex items-center gap-1.5 ${
                                         isSelected
-                                          ? 'bg-emerald-600 text-white border-emerald-600'
-                                          : 'bg-white text-slate-700 border-slate-300'
+                                          ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
+                                          : 'bg-white text-slate-700 border-slate-300 hover:border-slate-400'
                                       }`}
                                     >
-                                      {opt.name} (+{formatUsd(opt.resolvedPriceCents)})
+                                      {isSelected && <Check className="w-3 h-3" />}
+                                      {opt.name} {opt.resolvedPriceCents > 0 ? `(+${formatUsd(opt.resolvedPriceCents)})` : ''}
                                     </button>
                                   );
                                 })}
@@ -369,63 +486,101 @@ export default function OrdersPage() {
                             </div>
                           ))}
 
-                        <button
-                          type="button"
-                          onClick={addCombinationToOrder}
-                          className="px-3 py-1.5 bg-indigo-600 text-white font-bold text-xs rounded hover:bg-indigo-700"
-                        >
-                          Add Dish Combination to Order
-                        </button>
+                        <div className="flex items-center gap-3 pt-2 border-t border-indigo-100">
+                          <div className="flex items-center gap-2">
+                            <label className="font-semibold text-slate-700 text-xs">Quantity:</label>
+                            <input
+                              type="number"
+                              min={1}
+                              value={comboQty}
+                              onChange={(e) => setComboQty(Math.max(1, parseInt(e.target.value, 10) || 1))}
+                              className="w-16 p-1.5 rounded border border-slate-300 text-xs font-bold text-center bg-white"
+                            />
+                          </div>
+
+                          <button
+                            type="button"
+                            onClick={addCombinationToOrder}
+                            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg transition shadow-sm flex items-center gap-1.5"
+                          >
+                            <Plus className="w-4 h-4" /> Add Combination to Cart
+                          </button>
+                        </div>
                       </div>
                     )}
                   </div>
                 )}
 
-                {/* Selected Lines Summary */}
+                {/* Step 3: Selected Order Items Summary */}
                 {orderLines.length > 0 && (
-                  <div className="space-y-2 border-t border-slate-200 pt-3">
-                    <p className="font-bold text-slate-900 text-xs">Order Summary ({orderLines.length} line items):</p>
-                    <ul className="space-y-1">
+                  <div className="space-y-3 bg-slate-50 p-4 rounded-xl border border-slate-200">
+                    <div className="flex items-center justify-between">
+                      <p className="font-bold text-slate-900 text-xs">
+                        Step 3: Order Items Summary ({orderLines.length} item{orderLines.length > 1 ? 's' : ''})
+                      </p>
+                      <span className="font-extrabold text-emerald-800 text-sm">
+                        Grand Total: {formatUsd(calculateOrderGrandTotal())}
+                      </span>
+                    </div>
+
+                    <div className="space-y-2">
                       {orderLines.map((line, idx) => (
-                        <li key={idx} className="p-2 bg-slate-50 border rounded text-xs flex justify-between items-center">
-                          <span>
-                            {line.quantity}x <strong>{line.dishName}</strong>
-                          </span>
-                          <button
-                            type="button"
-                            onClick={() => setOrderLines(orderLines.filter((_, i) => i !== idx))}
-                            className="text-rose-600 font-bold"
-                          >
-                            Remove
-                          </button>
-                        </li>
+                        <div key={idx} className="p-3 bg-white border border-slate-200 rounded-lg text-xs flex items-center justify-between gap-2 shadow-sm">
+                          <div>
+                            <p className="font-bold text-slate-900">
+                              {line.quantity}x {line.dishName}
+                            </p>
+                            {line.combinations?.[0]?.chosenOptionDetails?.length > 0 && (
+                              <p className="text-[11px] text-slate-500 font-normal">
+                                Options: {line.combinations[0].chosenOptionDetails.map((o: any) => o.name).join(', ')}
+                              </p>
+                            )}
+                          </div>
+
+                          <div className="flex items-center gap-3">
+                            <span className="font-bold text-slate-800">{formatUsd(line.totalCents)}</span>
+                            <button
+                              type="button"
+                              onClick={() => setOrderLines(orderLines.filter((_, i) => i !== idx))}
+                              className="text-rose-600 hover:text-rose-800 p-1"
+                            >
+                              <Trash2 className="w-4 h-4" />
+                            </button>
+                          </div>
+                        </div>
                       ))}
-                    </ul>
+                    </div>
                   </div>
                 )}
               </div>
 
-              <div className="flex justify-end gap-2 pt-3 border-t border-slate-100">
-                <button type="button" onClick={() => setIsOrderModalOpen(false)} className="px-4 py-2 text-slate-600 font-semibold text-xs">
-                  Cancel
-                </button>
-                <button
-                  type="button"
-                  disabled={!orderEmployeeId || orderLines.length === 0 || createOrderMutation.isPending}
-                  onClick={() =>
-                    createOrderMutation.mutate({
-                      employeeId: orderEmployeeId,
-                      deliveryDate: orderDeliveryDate,
-                      deliveryTime: orderDeliveryTime,
-                      packagingType: orderPackaging,
-                      status: 'PLACED',
-                      lines: orderLines,
-                    })
-                  }
-                  className="px-4 py-2 bg-emerald-600 text-white font-semibold text-xs rounded-lg hover:bg-emerald-700 disabled:opacity-50"
-                >
-                  {createOrderMutation.isPending ? 'Placing Order...' : 'Place Order Now'}
-                </button>
+              {/* Modal Footer */}
+              <div className="flex items-center justify-between pt-3 border-t border-slate-100">
+                <span className="text-xs font-bold text-slate-700">
+                  {orderLines.length > 0 && `Total: ${formatUsd(calculateOrderGrandTotal())}`}
+                </span>
+                <div className="flex gap-2">
+                  <button type="button" onClick={() => setIsOrderModalOpen(false)} className="px-4 py-2 text-slate-600 font-semibold text-xs">
+                    Cancel
+                  </button>
+                  <button
+                    type="button"
+                    disabled={!orderEmployeeId || orderLines.length === 0 || createOrderMutation.isPending}
+                    onClick={() =>
+                      createOrderMutation.mutate({
+                        employeeId: orderEmployeeId,
+                        deliveryDate: orderDeliveryDate,
+                        deliveryTime: orderDeliveryTime,
+                        packagingType: orderPackaging,
+                        status: 'PLACED',
+                        lines: orderLines,
+                      })
+                    }
+                    className="px-4.5 py-2 bg-emerald-600 text-white font-semibold text-xs rounded-lg hover:bg-emerald-700 disabled:opacity-50 transition shadow-sm"
+                  >
+                    {createOrderMutation.isPending ? 'Placing Order...' : 'Place Order Now'}
+                  </button>
+                </div>
               </div>
             </div>
           </div>

@@ -87,7 +87,17 @@ export class PricingService {
       return calculateDerivedPriceCents(basePrice, tier.multiplier);
     }
 
-    return override ? override.priceCents : null;
+    if (override) return override.priceCents;
+
+    // Fallback: If non-default tier without override, attempt fallback to system default tier
+    if (!tier.isDefault) {
+      const defaultTier = await this.prisma.priceTier.findFirst({ where: { isDefault: true } });
+      if (defaultTier && defaultTier.id !== tierId) {
+        return this.resolveDishPriceForTier(dishId, defaultTier.id);
+      }
+    }
+
+    return null;
   }
 
   async resolveOptionPriceForTier(optionId: string, tierId: string): Promise<number> {
@@ -110,6 +120,13 @@ export class PricingService {
     if (tier.derivationType === TierDerivationType.PERCENTAGE_OF_TIER && tier.baseTierId && tier.multiplier) {
       const basePrice = await this.resolveOptionPriceForTier(optionId, tier.baseTierId);
       return calculateDerivedPriceCents(basePrice, tier.multiplier);
+    }
+
+    if (!tier.isDefault) {
+      const defaultTier = await this.prisma.priceTier.findFirst({ where: { isDefault: true } });
+      if (defaultTier && defaultTier.id !== tierId) {
+        return this.resolveOptionPriceForTier(optionId, defaultTier.id);
+      }
     }
 
     return option.costPriceCents;

@@ -11,6 +11,7 @@ describe('PricingService — Derived Pricing, Overrides & Ceiling Rounding', () 
     priceTier: {
       findMany: jest.fn(),
       findUnique: jest.fn(),
+      findFirst: jest.fn(),
       create: jest.fn(),
       updateMany: jest.fn(),
     },
