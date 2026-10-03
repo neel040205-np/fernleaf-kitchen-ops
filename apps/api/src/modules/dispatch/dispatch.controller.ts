@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Body, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Put, Body, Param, Query, UseGuards, BadRequestException } from '@nestjs/common';
 import { DispatchService } from './dispatch.service';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../auth/guards/roles.guard';
@@ -10,6 +10,21 @@ import { DropStatus, Role } from '../../common/enums';
 @Controller('dispatch')
 export class DispatchController {
   constructor(private readonly dispatchService: DispatchService) {}
+
+  @Roles(Role.ADMIN, Role.DISPATCH)
+  @Get('drivers')
+  async getDrivers() {
+    return this.dispatchService.getDrivers();
+  }
+
+  @Roles(Role.ADMIN, Role.DISPATCH)
+  @Post('drivers')
+  async createDriver(@Body() body: { name: string; email: string; password?: string }) {
+    if (!body.name || !body.email) {
+      throw new BadRequestException('Driver name and email are required');
+    }
+    return this.dispatchService.createDriver(body);
+  }
 
   @Roles(Role.ADMIN, Role.DISPATCH)
   @Get('board')

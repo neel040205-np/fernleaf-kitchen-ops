@@ -1,10 +1,58 @@
-import { Injectable, NotFoundException, BadRequestException } from '@nestjs/common';
+import { Injectable, NotFoundException, BadRequestException, ConflictException } from '@nestjs/common';
+import * as bcrypt from 'bcryptjs';
 import { PrismaService } from '../../prisma/prisma.service';
-import { DropStatus, OrderStatus } from '../../common/enums';
+import { DropStatus, OrderStatus, Role } from '../../common/enums';
 
 @Injectable()
 export class DispatchService {
   constructor(private prisma: PrismaService) {}
+
+  /**
+   * Get all registered driver/rider users
+   */
+  async getDrivers() {
+    return this.prisma.user.findMany({
+      where: { role: Role.DRIVER },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        createdAt: true,
+      },
+      orderBy: { name: 'asc' },
+    });
+  }
+
+  /**
+   * Create a new driver/rider user account
+   */
+  async createDriver(data: { name: string; email: string; password?: string }) {
+    const email = data.email.toLowerCase().trim();
+    const existing = await this.prisma.user.findUnique({ where: { email } });
+    if (existing) {
+      throw new ConflictException(`User with email "${email}" already exists`);
+    }
+
+    const rawPassword = data.password || 'Test@1234';
+    const passwordHash = await bcrypt.hash(rawPassword, 10);
+
+    return this.prisma.user.create({
+      data: {
+        name: data.name,
+        email,
+        passwordHash,
+        role: Role.DRIVER,
+      },
+      select: {
+        id: true,
+        name: true,
+        email: true,
+        role: true,
+        createdAt: true,
+      },
+    });
+  }
 
   /**
    * Get Dispatch Board drops for a chosen date, grouping orders by company + address + delivery time
