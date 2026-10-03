@@ -1,6 +1,6 @@
 'use client';
 
-import React from 'react';
+import React, { useState, useEffect } from 'react';
 import Link from 'next/link';
 import { usePathname } from 'next/navigation';
 import { useAuth } from '../../lib/auth-context';
@@ -17,6 +17,8 @@ import {
   Settings,
   LogOut,
   UserCheck,
+  Menu,
+  X,
 } from 'lucide-react';
 
 interface NavItem {
@@ -43,6 +45,14 @@ const NAV_ITEMS: NavItem[] = [
 export function AppLayout({ children }: { children: React.ReactNode }) {
   const { user, logout } = useAuth();
   const pathname = usePathname();
+  const [isSidebarOpen, setIsSidebarOpen] = useState(true);
+
+  // Auto-close sidebar on mobile screens when navigating
+  useEffect(() => {
+    if (typeof window !== 'undefined' && window.innerWidth < 768) {
+      setIsSidebarOpen(false);
+    }
+  }, [pathname]);
 
   const filteredNav = NAV_ITEMS.filter((item) => user && item.roles.includes(user.role));
 
@@ -62,17 +72,40 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
   };
 
   return (
-    <div className="flex h-screen bg-slate-100 overflow-hidden">
+    <div className="flex h-screen bg-slate-100 overflow-hidden relative">
+      {/* Mobile Overlay Backdrop */}
+      {isSidebarOpen && (
+        <div
+          onClick={() => setIsSidebarOpen(false)}
+          className="fixed inset-0 bg-slate-900/50 backdrop-blur-xs z-30 md:hidden transition-opacity"
+        />
+      )}
+
       {/* Sidebar */}
-      <aside className="w-64 bg-slate-900 text-white flex flex-col shrink-0 border-r border-slate-800">
-        <div className="p-5 border-b border-slate-800 flex items-center gap-3">
-          <div className="w-9 h-9 rounded-lg bg-emerald-600 flex items-center justify-center font-bold text-lg text-white">
-            F
+      <aside
+        className={`bg-slate-900 text-white flex flex-col shrink-0 border-r border-slate-800 transition-all duration-300 ease-in-out z-40 ${
+          isSidebarOpen
+            ? 'w-64 opacity-100 translate-x-0'
+            : 'w-0 opacity-0 -translate-x-full overflow-hidden border-none pointer-events-none p-0'
+        } max-md:fixed max-md:inset-y-0 max-md:left-0 max-md:h-full`}
+      >
+        <div className="p-5 border-b border-slate-800 flex items-center justify-between">
+          <div className="flex items-center gap-3">
+            <div className="w-9 h-9 rounded-lg bg-emerald-600 flex items-center justify-center font-bold text-lg text-white">
+              F
+            </div>
+            <div>
+              <h1 className="font-bold text-base leading-tight text-slate-100">Fernleaf Kitchen</h1>
+              <p className="text-xs text-slate-400">Operations Admin</p>
+            </div>
           </div>
-          <div>
-            <h1 className="font-bold text-base leading-tight text-slate-100">Fernleaf Kitchen</h1>
-            <p className="text-xs text-slate-400">Operations Admin</p>
-          </div>
+          <button
+            onClick={() => setIsSidebarOpen(false)}
+            className="md:hidden text-slate-400 hover:text-white p-1 rounded-md"
+            title="Close sidebar"
+          >
+            <X className="w-5 h-5" />
+          </button>
         </div>
 
         <nav className="flex-1 p-4 space-y-1 overflow-y-auto">
@@ -89,8 +122,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
                     : 'text-slate-300 hover:bg-slate-800 hover:text-white'
                 }`}
               >
-                <Icon className="w-4 h-4" />
-                {item.label}
+                <Icon className="w-4 h-4 shrink-0" />
+                <span className="truncate">{item.label}</span>
               </Link>
             );
           })}
@@ -100,7 +133,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
         <div className="p-4 border-t border-slate-800 bg-slate-950/50">
           <div className="flex items-center justify-between">
             <div className="flex items-center gap-2.5 overflow-hidden">
-              <div className="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center text-xs font-semibold text-slate-200">
+              <div className="w-8 h-8 rounded-full bg-slate-700 flex items-center justify-center text-xs font-semibold text-slate-200 shrink-0">
                 {user?.name.charAt(0) || 'U'}
               </div>
               <div className="truncate">
@@ -111,7 +144,7 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
             <button
               onClick={logout}
               title="Logout"
-              className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded-md transition-colors"
+              className="p-1.5 text-slate-400 hover:text-rose-400 hover:bg-slate-800 rounded-md transition-colors shrink-0"
             >
               <LogOut className="w-4 h-4" />
             </button>
@@ -120,26 +153,38 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       </aside>
 
       {/* Main Content Area */}
-      <div className="flex-1 flex flex-col min-w-0 overflow-hidden">
+      <div className="flex-1 flex flex-col min-w-0 overflow-hidden w-full transition-all duration-300">
         {/* Top Bar */}
-        <header className="h-16 bg-white border-b border-slate-200 px-6 flex items-center justify-between shrink-0 shadow-sm">
+        <header className="h-16 bg-white border-b border-slate-200 px-4 sm:px-6 flex items-center justify-between shrink-0 shadow-xs">
           <div className="flex items-center gap-3">
-            <h2 className="text-lg font-bold text-slate-800">
+            {/* Hamburger / Three stripes toggle button */}
+            <button
+              onClick={() => setIsSidebarOpen((prev) => !prev)}
+              className="p-2 rounded-lg text-slate-600 hover:text-slate-900 hover:bg-slate-100 transition-colors focus:outline-hidden"
+              title={isSidebarOpen ? 'Collapse sidebar (Full screen)' : 'Expand sidebar'}
+            >
+              <Menu className="w-5 h-5" />
+            </button>
+
+            <h2 className="text-base sm:text-lg font-bold text-slate-800 truncate">
               {filteredNav.find((n) => n.href === pathname)?.label || 'Dashboard'}
             </h2>
           </div>
 
-          <div className="flex items-center gap-4">
-            <div className="flex items-center gap-2 text-xs text-slate-500 bg-slate-50 px-3 py-1.5 rounded-md border border-slate-200">
-              <UserCheck className="w-3.5 h-3.5 text-emerald-600" />
-              <span>Signed in as: <strong className="text-slate-700">{user?.name}</strong></span>
+          <div className="flex items-center gap-2 sm:gap-4">
+            <div className="flex items-center gap-2 text-xs text-slate-500 bg-slate-50 px-2.5 sm:px-3 py-1.5 rounded-md border border-slate-200">
+              <UserCheck className="w-3.5 h-3.5 text-emerald-600 shrink-0" />
+              <span className="hidden sm:inline">
+                Signed in as: <strong className="text-slate-700">{user?.name}</strong>
+              </span>
+              <span className="sm:hidden font-semibold text-slate-700">{user?.name}</span>
               {getRoleBadge(user?.role)}
             </div>
           </div>
         </header>
 
         {/* Page Content */}
-        <main className="flex-1 overflow-y-auto p-6">{children}</main>
+        <main className="flex-1 overflow-y-auto p-4 sm:p-6">{children}</main>
       </div>
     </div>
   );

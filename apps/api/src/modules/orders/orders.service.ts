@@ -400,8 +400,15 @@ export class OrdersService {
 
     const orderStatus = data.status || OrderStatus.PLACED;
 
+    const lastOrder = await this.prisma.order.findFirst({
+      orderBy: { orderNumber: 'desc' },
+      select: { orderNumber: true },
+    });
+    const nextOrderNumber = (lastOrder?.orderNumber || 1000) + 1;
+
     const order = await this.prisma.order.create({
       data: {
+        orderNumber: nextOrderNumber,
         employeeId: employee.id,
         deliveryAddressId: addressId,
         deliveryDate: deliveryDateObj,
