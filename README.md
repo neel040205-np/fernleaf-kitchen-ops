@@ -122,9 +122,60 @@ erDiagram
     ORDER ||--o{ ORDER_LINE : contains
     ORDER_LINE ||--o{ ORDER_COMBINATION : splits_into
     ORDER_COMBINATION ||--o{ PREP_UNIT : cooks_as
-    DELIVERY_DROP ||--o{ ORDER : groups
     DELIVERY_PARTNER ||--o{ DELIVERY_DROP : delivers
     INVOICE ||--o{ ORDER : includes
+```
+
+### 3. End-to-End Operational Workflow Diagram
+
+This flowchart illustrates the complete operational lifecycle of Fernleaf Kitchen Ops from initial admin setup to final corporate invoicing:
+
+```mermaid
+graph TD
+    subgraph Step1["1. Admin Platform Setup"]
+        A1["Configure Dishes, Options & Stations"]
+        A2["Set Derived Price Tiers (5-Cent Ceiling)"]
+        A3["Onboard Companies & Import Employees"]
+        A1 --> A2 --> A3
+    end
+
+    subgraph Step2["2. Order Creation & Menu Rules"]
+        B1["Employee Menu Resolved (Tiers & Hiding)"]
+        B2["Build Combination Options (Paneer, Rice)"]
+        B3["Validate 2:30h Lead Window & Place Order"]
+        B1 --> B2 --> B3
+    end
+
+    subgraph Step3["3. Cut-off Processing Engine"]
+        C1["Kitchen Working Days Count Trigger"]
+        C2["Draft Orders Auto-CANCELLED"]
+        C3["Placed Orders CONFIRMED & Locked"]
+        C1 --> C2
+        C1 --> C3
+    end
+
+    subgraph Step4["4. Kitchen Station Preparation"]
+        D1["Confirmed Orders Split into Prep Units"]
+        D2["Route Units to Stations (Cold/Hot/Bakery)"]
+        D3["Kitchen Lead Marks Units STARTED -> DONE"]
+        D1 --> D2 --> D3
+    end
+
+    subgraph Step5["5. Dispatch & Drop Grouping"]
+        E1["Group Orders by Company + Address + Time"]
+        E2["Assign Delivery Partner / Driver"]
+        E3["Status: DISPATCH_READY -> OUT_FOR_DELIVERY"]
+        E1 --> E2 --> E3
+    end
+
+    subgraph Step6["6. Mobile Driver & Corporate Billing"]
+        F1["Driver Views Today/Upcoming Drops"]
+        F2["Mark DELIVERED with Note & Photo Proof"]
+        F3["Corporate Invoicing & Invoice Payment"]
+        F1 --> F2 --> F3
+    end
+
+    Step1 --> Step2 --> Step3 --> Step4 --> Step5 --> Step6
 ```
 
 ---
