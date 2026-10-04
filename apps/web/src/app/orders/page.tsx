@@ -788,12 +788,23 @@ export default function OrdersPage() {
                                 >
                                   <div>
                                     <div className="flex items-start justify-between gap-2">
-                                      <h4 className="font-bold text-slate-900 text-xs">{dish.name}</h4>
-                                      <span className="font-extrabold text-emerald-700 text-xs shrink-0">
+                                      <div className="flex items-center gap-2.5">
+                                        {dish.imageUrl && (
+                                          <img
+                                            src={dish.imageUrl}
+                                            alt={dish.name}
+                                            className="w-12 h-12 object-cover rounded-lg border border-slate-200 shrink-0"
+                                          />
+                                        )}
+                                        <div>
+                                          <h4 className="font-bold text-slate-900 text-xs">{dish.name}</h4>
+                                          <p className="text-[11px] text-slate-500 mt-0.5 line-clamp-2">{dish.description}</p>
+                                        </div>
+                                      </div>
+                                      <span className="font-extrabold text-emerald-700 text-xs shrink-0 bg-emerald-50 px-2 py-1 rounded-md border border-emerald-200">
                                         {formatUsd(dish.resolvedPriceCents)}
                                       </span>
                                     </div>
-                                    <p className="text-[11px] text-slate-500 mt-1 line-clamp-2">{dish.description}</p>
                                   </div>
 
                                   <div className="flex flex-wrap items-center gap-1.5 pt-1 text-[10px]">
