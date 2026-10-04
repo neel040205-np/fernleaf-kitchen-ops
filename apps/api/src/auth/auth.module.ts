@@ -15,7 +15,7 @@ import { RolesGuard } from './guards/roles.guard';
       inject: [ConfigService],
       useFactory: (configService: ConfigService) => ({
         secret: configService.get<string>('JWT_SECRET') || 'fernleaf_kitchen_super_secret_jwt_key_2026',
-        signOptions: { expiresIn: '7d' },
+        signOptions: { expiresIn: '21d' },
       }),
     }),
   ],
