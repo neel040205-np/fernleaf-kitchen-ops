@@ -5,6 +5,7 @@ import { useQuery } from '@tanstack/react-query';
 import { AppLayout } from '../../components/layout/AppLayout';
 import { useAuth } from '../../lib/auth-context';
 import { fetchApi } from '../../lib/api';
+import { formatUsd } from '../../lib/money';
 import Link from 'next/link';
 import {
   ShoppingBag,
@@ -27,7 +28,6 @@ export default function DashboardPage() {
     enabled: !!user,
   });
 
-  const formatUsd = (cents: number) => `$${(cents / 100).toFixed(2)}`;
 
   if (isLoading) {
     return (

@@ -4,6 +4,7 @@ import React, { useState } from 'react';
 import { useQuery, useMutation, useQueryClient } from '@tanstack/react-query';
 import { AppLayout } from '../../components/layout/AppLayout';
 import { fetchApi } from '../../lib/api';
+import { formatUsd } from '../../lib/money';
 import { Receipt, DollarSign, CheckCircle2, Building2, FileText, ArrowRight } from 'lucide-react';
 
 export default function BillingPage() {
@@ -45,7 +46,7 @@ export default function BillingPage() {
     },
   });
 
-  const formatUsd = (cents: number) => `$${(cents / 100).toFixed(2)}`;
+
 
   return (
     <AppLayout>

@@ -149,7 +149,22 @@ export default function OrdersPage() {
 
   const formatTime = (timeInput?: string | Date) => {
     if (!timeInput) return '--:--';
-    const d = new Date(timeInput);
+    let d: Date;
+    if (typeof timeInput === 'string' && timeInput.includes(':') && !timeInput.includes('T')) {
+      const [hStr, mStr] = timeInput.split(':');
+      const h = parseInt(hStr, 10);
+      const m = parseInt(mStr, 10);
+      if (!isNaN(h) && !isNaN(m)) {
+        const dateToday = new Date().toISOString().split('T')[0];
+        const hh = String(h).padStart(2, '0');
+        const mm = String(m).padStart(2, '0');
+        d = new Date(`${dateToday}T${hh}:${mm}:00.000+05:30`);
+      } else {
+        d = new Date(timeInput);
+      }
+    } else {
+      d = new Date(timeInput);
+    }
     if (isNaN(d.getTime())) return String(timeInput);
     return d.toLocaleTimeString('en-IN', {
       timeZone: 'Asia/Kolkata',
@@ -428,7 +443,7 @@ export default function OrdersPage() {
                       <td className="p-4 font-semibold text-slate-900">{ord.employee?.name}</td>
                       <td className="p-4 text-slate-700">{ord.employee?.company?.name}</td>
                       <td className="p-4 text-xs text-slate-600">
-                        {new Date(ord.deliveryDate).toISOString().split('T')[0]} at {ord.deliveryTime}
+                        {new Date(ord.deliveryDate).toISOString().split('T')[0]} at {formatTime(ord.deliveryTime)}
                       </td>
                       <td className="p-4 font-bold text-emerald-700">{formatUsd(ord.totalCents)}</td>
                       <td className="p-4">
@@ -546,7 +561,7 @@ export default function OrdersPage() {
                     Delivery Date: <strong>{new Date(viewingOrder.deliveryDate).toISOString().split('T')[0]}</strong>
                   </p>
                   <p className="text-slate-800">
-                    Delivery Time: <strong>{viewingOrder.deliveryTime} IST</strong>
+                    Delivery Time: <strong>{formatTime(viewingOrder.deliveryTime)}</strong>
                   </p>
                   <p className="text-amber-800 font-semibold">
                     Expected Cooking Completion: <strong>{formatTime(viewingOrder.plannedKitchenReadyAt)}</strong>

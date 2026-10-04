@@ -1,11 +1,17 @@
 import { PrismaClient } from '@prisma/client';
 import * as bcrypt from 'bcryptjs';
+import * as dotenv from 'dotenv';
+import * as path from 'path';
+
+dotenv.config({ path: path.join(__dirname, '../.env') });
+dotenv.config({ path: '.env' });
+
 import { Role, DishTemperature, OrderStatus, PrepUnitStatus, DropStatus, TierDerivationType } from '../src/common/enums';
 
 const prisma = new PrismaClient();
 
 async function main() {
-  console.log('Seeding Fernleaf Kitchen database with realistic interconnected data...');
+  console.log('Seeding Fernleaf Kitchen database with Hyderabad, India corporate data...');
 
   const passwordHash = await bcrypt.hash('Test@1234', 10);
 
@@ -34,6 +40,22 @@ async function main() {
   ]);
 
   console.log('✔ Mandatory 4 staff accounts verified (admin@test.com, kitchen@test.com, dispatch@test.com, driver@test.com)');
+
+  // Clean up legacy non-hyderabad companies and employees if existing
+  await prisma.kitchenPrepUnit.deleteMany({});
+  await prisma.orderCombinationOption.deleteMany({});
+  await prisma.orderLineCombination.deleteMany({});
+  await prisma.orderLine.deleteMany({});
+  await prisma.order.deleteMany({});
+  await prisma.invoice.deleteMany({});
+  await prisma.deliveryDrop.deleteMany({});
+  await prisma.employee.deleteMany({});
+  await prisma.companyHiddenCategory.deleteMany({});
+  await prisma.companyHiddenItem.deleteMany({});
+  await prisma.companyEmailDomain.deleteMany({});
+  await prisma.deliveryAddress.deleteMany({});
+  await prisma.companyHoliday.deleteMany({});
+  await prisma.company.deleteMany({});
 
   // 2. Kitchen Settings
   await prisma.kitchenSettings.upsert({
@@ -83,7 +105,7 @@ async function main() {
     create: { name: 'Partner', isDefault: false, derivationType: TierDerivationType.MULTIPLIER_OF_COST, multiplier: 2.4 },
   });
 
-  // 5. Categories & Dishes
+  // 5. Categories & Dishes (Prices in INR Cents/Paise: 15000 = ₹150.00)
   const [catBowls, catBreakfast, catSalads, catDesserts] = await Promise.all([
     prisma.category.upsert({ where: { name: 'Bowls & Mains' }, update: { displayOrder: 1 }, create: { name: 'Bowls & Mains', displayOrder: 1 } }),
     prisma.category.upsert({ where: { name: 'Breakfast Specials' }, update: { displayOrder: 2 }, create: { name: 'Breakfast Specials', displayOrder: 2 } }),
@@ -94,31 +116,31 @@ async function main() {
   const [dishPaneerBowl, dishTofuWok, dishMediterraneanSalad, dishBerryParfait] = await Promise.all([
     prisma.dish.upsert({
       where: { sku: 'BWL-001' },
-      update: { name: 'Paneer & Grain Rice Bowl', costPriceCents: 450, stationId: stationGrill.id },
+      update: { name: 'Paneer Tikka Rice Bowl', costPriceCents: 6000, stationId: stationGrill.id },
       create: {
         categoryId: catBowls.id,
-        name: 'Paneer & Grain Rice Bowl',
-        description: 'A wholesome meal box with grilled protein, spiced basmati grain, and fresh mint raita.',
+        name: 'Paneer Tikka Rice Bowl',
+        description: 'Char-grilled cottage cheese tikka with fragrant basmati pulao and mint chutney.',
         sku: 'BWL-001',
         temperature: DishTemperature.HOT,
-        costPriceCents: 450,
+        costPriceCents: 6000, // Cost ₹60
         minOrderQuantity: 1,
         isActive: true,
         stationId: stationGrill.id,
         allergensJson: JSON.stringify(['Dairy']),
-        dietaryTagsJson: JSON.stringify(['Gluten-Free']),
+        dietaryTagsJson: JSON.stringify(['Vegetarian', 'Gluten-Free']),
       },
     }),
     prisma.dish.upsert({
       where: { sku: 'BWL-002' },
-      update: { name: 'Teriyaki Tofu Wok Box', costPriceCents: 400, stationId: stationWok.id },
+      update: { name: 'Teriyaki Tofu Wok Box', costPriceCents: 5500, stationId: stationWok.id },
       create: {
         categoryId: catBowls.id,
         name: 'Teriyaki Tofu Wok Box',
-        description: 'Wok-tossed organic tofu with sesame greens and brown rice.',
+        description: 'Wok-tossed organic tofu with sesame stir-fry greens and steamed brown rice.',
         sku: 'BWL-002',
         temperature: DishTemperature.HOT,
-        costPriceCents: 400,
+        costPriceCents: 5500, // Cost ₹55
         minOrderQuantity: 1,
         isActive: true,
         stationId: stationWok.id,
@@ -128,14 +150,14 @@ async function main() {
     }),
     prisma.dish.upsert({
       where: { sku: 'SLD-001' },
-      update: { name: 'Mediterranean Chickpea Salad', costPriceCents: 350, stationId: stationCold.id },
+      update: { name: 'Mediterranean Chickpea Salad', costPriceCents: 4500, stationId: stationCold.id },
       create: {
         categoryId: catSalads.id,
         name: 'Mediterranean Chickpea Salad',
-        description: 'Crisp cucumbers, cherry tomatoes, kalamata olives, and spiced chickpeas with lemon tahini dressing.',
+        description: 'Crisp cucumbers, cherry tomatoes, olives, and roasted chickpeas with lemon tahini dressing.',
         sku: 'SLD-001',
         temperature: DishTemperature.COLD,
-        costPriceCents: 350,
+        costPriceCents: 4500, // Cost ₹45
         minOrderQuantity: 1,
         isActive: true,
         stationId: stationCold.id,
@@ -145,14 +167,14 @@ async function main() {
     }),
     prisma.dish.upsert({
       where: { sku: 'DST-001' },
-      update: { name: 'Wild Berry Chia Parfait', costPriceCents: 250, stationId: stationBakery.id },
+      update: { name: 'Wild Berry Chia Parfait', costPriceCents: 3500, stationId: stationBakery.id },
       create: {
         categoryId: catDesserts.id,
         name: 'Wild Berry Chia Parfait',
-        description: 'Layered coconut chia pudding with wild berry compote and almond crunch.',
+        description: 'Layered coconut chia pudding with wild berry compote and roasted almond flakes.',
         sku: 'DST-001',
         temperature: DishTemperature.COLD,
-        costPriceCents: 250,
+        costPriceCents: 3500, // Cost ₹35
         minOrderQuantity: 1,
         isActive: true,
         stationId: stationBakery.id,
@@ -162,19 +184,27 @@ async function main() {
     }),
   ]);
 
-  // Dish Tier Prices
+  // Dish Tier Prices in INR (Paneer Bowl: ₹150, Tofu Wok: ₹140, Chickpea Salad: ₹120, Chia Parfait: ₹90)
+  const dishPricesMap: Record<string, number> = {
+    'BWL-001': 15000, // ₹150.00
+    'BWL-002': 14000, // ₹140.00
+    'SLD-001': 12000, // ₹120.00
+    'DST-001': 9000,  // ₹90.00
+  };
+
   const dishes = [dishPaneerBowl, dishTofuWok, dishMediterraneanSalad, dishBerryParfait];
   for (const d of dishes) {
+    const basePrice = dishPricesMap[d.sku] || 15000;
     await Promise.all([
       prisma.dishTierPrice.upsert({
         where: { dishId_tierId: { dishId: d.id, tierId: standardTier.id } },
-        update: { priceCents: Math.round(d.costPriceCents * 2.5) },
-        create: { dishId: d.id, tierId: standardTier.id, priceCents: Math.round(d.costPriceCents * 2.5), isOverride: false },
+        update: { priceCents: basePrice },
+        create: { dishId: d.id, tierId: standardTier.id, priceCents: basePrice, isOverride: false },
       }),
       prisma.dishTierPrice.upsert({
         where: { dishId_tierId: { dishId: d.id, tierId: enterpriseTier.id } },
-        update: { priceCents: Math.round(d.costPriceCents * 2.5 * 1.15) },
-        create: { dishId: d.id, tierId: enterpriseTier.id, priceCents: Math.round(d.costPriceCents * 2.5 * 1.15), isOverride: false },
+        update: { priceCents: Math.round(basePrice * 1.15) },
+        create: { dishId: d.id, tierId: enterpriseTier.id, priceCents: Math.round(basePrice * 1.15), isOverride: false },
       }),
       prisma.dishTierPrice.upsert({
         where: { dishId_tierId: { dishId: d.id, tierId: partnerTier.id } },
@@ -184,190 +214,218 @@ async function main() {
     ]);
   }
 
-  // 6. Companies & Addresses
-  const [companyAcme, companyTechNova, companyCyberdyne, companyFernleaf] = await Promise.all([
-    prisma.company.upsert({
-      where: { name: 'Acme Corp' },
-      update: { billingContact: 'billing@acme.com', defaultDriverId: driverUser.id, ownerId: adminUser.id },
-      create: {
-        name: 'Acme Corp',
-        billingContact: 'billing@acme.com',
-        priceTierId: standardTier.id,
-        workingDaysJson: JSON.stringify([1, 2, 3, 4, 5]),
-        defaultDeliveryTime: '12:30',
-        deliveryLeadMinutes: 60,
-        defaultPackaging: 'Eco Box',
-        driverInstructions: 'Leave with receptionist at front desk on 4th floor.',
-        defaultDriverId: driverUser.id,
-        ownerId: adminUser.id,
-      },
-    }),
-    prisma.company.upsert({
-      where: { name: 'TechNova Inc' },
-      update: { billingContact: 'finance@technova.io', defaultDriverId: driverUser.id, ownerId: adminUser.id },
-      create: {
-        name: 'TechNova Inc',
-        billingContact: 'finance@technova.io',
-        priceTierId: enterpriseTier.id,
-        workingDaysJson: JSON.stringify([1, 2, 3, 4, 5]),
-        defaultDeliveryTime: '13:00',
-        deliveryLeadMinutes: 45,
-        defaultPackaging: 'Premium Bento',
-        driverInstructions: 'Security check required at Tower B main gate.',
-        defaultDriverId: driverUser.id,
-        ownerId: adminUser.id,
-      },
-    }),
-    prisma.company.upsert({
-      where: { name: 'Cyberdyne Systems' },
-      update: { billingContact: 'accounts@cyberdyne.com', defaultDriverId: driverUser.id, ownerId: adminUser.id },
-      create: {
-        name: 'Cyberdyne Systems',
-        billingContact: 'accounts@cyberdyne.com',
-        priceTierId: partnerTier.id,
-        workingDaysJson: JSON.stringify([1, 2, 3, 4, 5]),
-        defaultDeliveryTime: '12:00',
-        deliveryLeadMinutes: 60,
-        defaultPackaging: 'Thermal Insulated Box',
-        driverInstructions: 'Deliver to loading dock 2.',
-        defaultDriverId: driverUser.id,
-        ownerId: adminUser.id,
-      },
-    }),
-    prisma.company.upsert({
-      where: { name: 'Fernleaf Global' },
-      update: { billingContact: 'ops@fernleaf.com', defaultDriverId: driverUser.id, ownerId: adminUser.id },
-      create: {
-        name: 'Fernleaf Global',
-        billingContact: 'ops@fernleaf.com',
-        priceTierId: standardTier.id,
-        workingDaysJson: JSON.stringify([1, 2, 3, 4, 5]),
-        defaultDeliveryTime: '12:15',
-        deliveryLeadMinutes: 30,
-        defaultPackaging: 'Eco Box',
-        driverInstructions: 'Ring doorbell at Suite 100.',
-        defaultDriverId: driverUser.id,
-        ownerId: adminUser.id,
-      },
-    }),
-  ]);
+  // 6. Create 6 Corporate Companies located in Hyderabad, India
+  console.log('Seeding 6 corporate accounts located in Hyderabad, India...');
 
-  await Promise.all([
-    prisma.companyEmailDomain.upsert({ where: { domain: 'acme.com' }, update: {}, create: { companyId: companyAcme.id, domain: 'acme.com' } }),
-    prisma.companyEmailDomain.upsert({ where: { domain: 'technova.io' }, update: {}, create: { companyId: companyTechNova.id, domain: 'technova.io' } }),
-    prisma.companyEmailDomain.upsert({ where: { domain: 'cyberdyne.com' }, update: {}, create: { companyId: companyCyberdyne.id, domain: 'cyberdyne.com' } }),
-    prisma.companyEmailDomain.upsert({ where: { domain: 'fernleaf.com' }, update: {}, create: { companyId: companyFernleaf.id, domain: 'fernleaf.com' } }),
-  ]);
-
-  // Delivery Addresses
-  const [addrAcme, addrTechNova, addrCyberdyne, addrFernleaf] = await Promise.all([
-    prisma.deliveryAddress.findFirst({ where: { companyId: companyAcme.id } }).then(a => a || prisma.deliveryAddress.create({ data: { companyId: companyAcme.id, addressLine: '100 Innovation Way, Suite 400', city: 'Tech City', postalCode: '90001', notes: 'Loading bay in rear' } })),
-    prisma.deliveryAddress.findFirst({ where: { companyId: companyTechNova.id } }).then(a => a || prisma.deliveryAddress.create({ data: { companyId: companyTechNova.id, addressLine: '500 Cyber Park, Tower B', city: 'Metroville', postalCode: '90210' } })),
-    prisma.deliveryAddress.findFirst({ where: { companyId: companyCyberdyne.id } }).then(a => a || prisma.deliveryAddress.create({ data: { companyId: companyCyberdyne.id, addressLine: '101 Skynet Blvd', city: 'Silicon Valley', postalCode: '94025' } })),
-    prisma.deliveryAddress.findFirst({ where: { companyId: companyFernleaf.id } }).then(a => a || prisma.deliveryAddress.create({ data: { companyId: companyFernleaf.id, addressLine: '777 Fernleaf Gardens', city: 'San Francisco', postalCode: '94103' } })),
-  ]);
-
-  // 7. Seed 60+ Employees across Companies
-  console.log('Seeding 60+ employees with realistic permissions & dietary profiles...');
-
-  const firstNames = ['James', 'Mary', 'Robert', 'Patricia', 'John', 'Jennifer', 'Michael', 'Linda', 'David', 'Elizabeth', 'William', 'Barbara', 'Richard', 'Susan', 'Joseph', 'Jessica', 'Thomas', 'Sarah', 'Charles', 'Karen'];
-  const lastNames = ['Smith', 'Johnson', 'Williams', 'Brown', 'Jones', 'Garcia', 'Miller', 'Davis', 'Rodriguez', 'Martinez', 'Hernandez', 'Lopez', 'Gonzalez', 'Wilson', 'Anderson', 'Thomas', 'Taylor', 'Moore', 'Jackson', 'Martin'];
-
-  const compList = [
-    { id: companyAcme.id, domain: 'acme.com', count: 18 },
-    { id: companyTechNova.id, domain: 'technova.io', count: 18 },
-    { id: companyCyberdyne.id, domain: 'cyberdyne.com', count: 15 },
-    { id: companyFernleaf.id, domain: 'fernleaf.com', count: 15 },
+  const hyderabadCompaniesData = [
+    {
+      name: 'TCS Hyderabad',
+      billingContact: 'finance.hyd@tcs-hyd.in',
+      domain: 'tcs-hyd.in',
+      tierId: standardTier.id,
+      deliveryTime: '12:30',
+      leadMins: 60,
+      packaging: 'Eco Box',
+      instructions: 'Deliver to Cyber Pearl Campus, Tower 1 receptiondesk, HITEC City, Hyderabad.',
+      addressLine: 'Cyber Pearl Campus, HITEC City',
+      city: 'Hyderabad',
+      postalCode: '500081',
+    },
+    {
+      name: 'Infosys Hyderabad',
+      billingContact: 'accounts@infosys-hyd.in',
+      domain: 'infosys-hyd.in',
+      tierId: enterpriseTier.id,
+      deliveryTime: '13:00',
+      leadMins: 45,
+      packaging: 'Premium Bento',
+      instructions: 'Gate 2 security verification required at Pocharam IT SEZ Campus, Hyderabad.',
+      addressLine: 'Pocharam IT SEZ, Ghatkesar Mandal',
+      city: 'Hyderabad',
+      postalCode: '500088',
+    },
+    {
+      name: 'Wipro Hyderabad',
+      billingContact: 'admin@wipro-hyd.in',
+      domain: 'wipro-hyd.in',
+      tierId: partnerTier.id,
+      deliveryTime: '12:00',
+      leadMins: 60,
+      packaging: 'Thermal Insulated Box',
+      instructions: 'Deliver to loading dock 3 at Gachibowli Financial District, Hyderabad.',
+      addressLine: 'Financial District, Gachibowli',
+      city: 'Hyderabad',
+      postalCode: '500032',
+    },
+    {
+      name: 'Tech Mahindra Hyderabad',
+      billingContact: 'billing@techm-hyd.in',
+      domain: 'techm-hyd.in',
+      tierId: standardTier.id,
+      deliveryTime: '12:15',
+      leadMins: 30,
+      packaging: 'Eco Box',
+      instructions: 'Drop off at Infocity Tower A, Madhapur, Hyderabad.',
+      addressLine: 'Infocity, Madhapur',
+      city: 'Hyderabad',
+      postalCode: '500081',
+    },
+    {
+      name: 'Microsoft India Hyderabad',
+      billingContact: 'finance@microsoft-hyd.in',
+      domain: 'microsoft-hyd.in',
+      tierId: enterpriseTier.id,
+      deliveryTime: '12:45',
+      leadMins: 45,
+      packaging: 'Premium Bento',
+      instructions: 'Deliver to Building 3 Reception desk, Gachibowli Campus, Hyderabad.',
+      addressLine: 'Building 3, Gachibowli Campus',
+      city: 'Hyderabad',
+      postalCode: '500032',
+    },
+    {
+      name: 'Amazon Development Center Hyderabad',
+      billingContact: 'ops@amazon-hyd.in',
+      domain: 'amazon-hyd.in',
+      tierId: partnerTier.id,
+      deliveryTime: '13:15',
+      leadMins: 60,
+      packaging: 'Eco Box',
+      instructions: 'Security check at main gate, Amazon HYD13 Building, Nanakramguda, Hyderabad.',
+      addressLine: 'Financial District, Nanakramguda',
+      city: 'Hyderabad',
+      postalCode: '500032',
+    },
   ];
 
-  const empPromises: Array<Promise<any>> = [];
-  let totalEmpIdx = 1;
+  const createdCompanies = [];
 
-  for (const comp of compList) {
-    for (let i = 1; i <= comp.count; i++) {
-      const fname = firstNames[(totalEmpIdx + i) % firstNames.length];
-      const lname = lastNames[(totalEmpIdx * 3 + i) % lastNames.length];
+  for (const cData of hyderabadCompaniesData) {
+    const comp = await prisma.company.create({
+      data: {
+        name: cData.name,
+        billingContact: cData.billingContact,
+        priceTierId: cData.tierId,
+        workingDaysJson: JSON.stringify([1, 2, 3, 4, 5]),
+        defaultDeliveryTime: cData.deliveryTime,
+        deliveryLeadMinutes: cData.leadMins,
+        defaultPackaging: cData.packaging,
+        driverInstructions: cData.instructions,
+        defaultDriverId: driverUser.id,
+        ownerId: adminUser.id,
+        domains: {
+          create: [{ domain: cData.domain }],
+        },
+        addresses: {
+          create: [
+            {
+              addressLine: cData.addressLine,
+              city: cData.city,
+              postalCode: cData.postalCode,
+              notes: cData.instructions,
+            },
+          ],
+        },
+      },
+      include: { addresses: true },
+    });
+    createdCompanies.push({ ...comp, domain: cData.domain });
+  }
+
+  console.log(`✔ Created 6 Hyderabad corporate companies with addresses and domains.`);
+
+  // 7. Seed 108 Employees (18 per company) across Hyderabad companies
+  console.log('Seeding 108 Hyderabad employees with Indian names & dietary profiles...');
+
+  const indianFirstNames = [
+    'Rahul', 'Ananya', 'Vikram', 'Priya', 'Karthik', 'Sneha', 'Arjun', 'Kavya', 'Sameer', 'Deepa',
+    'Aditya', 'Pooja', 'Rohan', 'Neha', 'Siddharth', 'Shreya', 'Varun', 'Meera', 'Kunal', 'Ritu',
+    'Manish', 'Swati', 'Vishal', 'Divya', 'Suresh', 'Bhavana', 'Nitin', 'Tarun', 'Anjali', 'Gautam'
+  ];
+
+  const indianLastNames = [
+    'Sharma', 'Rao', 'Reddy', 'Patel', 'Varma', 'Kulkarni', 'Nambiar', 'Nair', 'Khan', 'Deshmukh',
+    'Joshi', 'Mehta', 'Agarwal', 'Gupta', 'Sen', 'Bhat', 'Pillai', 'Iyer', 'Chowdary', 'Raju',
+    'Murthy', 'Prasad', 'Kumar', 'Singh'
+  ];
+
+  const seededEmployees = [];
+
+  for (const comp of createdCompanies) {
+    for (let i = 1; i <= 18; i++) {
+      const fnIdx = (seededEmployees.length + i * 3) % indianFirstNames.length;
+      const lnIdx = (seededEmployees.length * 2 + i * 7) % indianLastNames.length;
+      const fname = indianFirstNames[fnIdx];
+      const lname = indianLastNames[lnIdx];
       const email = `${fname.toLowerCase()}.${lname.toLowerCase()}${i}@${comp.domain}`;
 
       const allergies = i % 4 === 0 ? ['Nuts'] : i % 5 === 0 ? ['Dairy'] : i % 7 === 0 ? ['Gluten'] : [];
-      const dietary = i % 3 === 0 ? ['Vegan'] : i % 6 === 0 ? ['Jain'] : i % 8 === 0 ? ['Gluten-Free'] : ['Vegetarian'];
+      const dietary = i % 3 === 0 ? ['Vegetarian'] : i % 5 === 0 ? ['Vegan'] : i % 6 === 0 ? ['Jain'] : ['Vegetarian'];
 
-      empPromises.push(
-        prisma.employee.upsert({
-          where: { email },
-          update: {
-            companyId: comp.id,
-            name: `${fname} ${lname}`,
-            canChooseAddress: i % 2 === 0,
-            canChangeDeliveryTime: i % 3 === 0,
-            canChangePackaging: i % 4 === 0,
-            allergiesJson: JSON.stringify(allergies),
-            dietaryPreferencesJson: JSON.stringify(dietary),
-          },
-          create: {
-            companyId: comp.id,
-            name: `${fname} ${lname}`,
-            email,
-            canChooseAddress: i % 2 === 0,
-            canChangeDeliveryTime: i % 3 === 0,
-            canChangePackaging: i % 4 === 0,
-            allergiesJson: JSON.stringify(allergies),
-            dietaryPreferencesJson: JSON.stringify(dietary),
-          },
-        })
-      );
-      totalEmpIdx++;
+      const emp = await prisma.employee.create({
+        data: {
+          companyId: comp.id,
+          name: `${fname} ${lname}`,
+          email,
+          canChooseAddress: i % 2 === 0,
+          canChangeDeliveryTime: i % 3 === 0,
+          canChangePackaging: i % 4 === 0,
+          allergiesJson: JSON.stringify(allergies),
+          dietaryPreferencesJson: JSON.stringify(dietary),
+        },
+      });
+      seededEmployees.push(emp);
     }
   }
 
-  const seededEmployeeList = await Promise.all(empPromises);
-  console.log(`✔ Successfully seeded ${seededEmployeeList.length} corporate employees!`);
+  console.log(`✔ Successfully seeded ${seededEmployees.length} Hyderabad corporate employees!`);
 
-  // 8. Seed Interconnected Orders, Drops, Prep Units & Invoices
-  console.log('Seeding operational orders across past dates, today, and future dates...');
+  // 8. Seed Interconnected Orders, Drops, Prep Units & Invoices for Hyderabad companies
+  console.log('Seeding operational orders for Hyderabad companies in IST...');
 
-  const today = new Date();
-  today.setHours(0, 0, 0, 0);
+  const todayStr = new Date().toISOString().split('T')[0];
+  const [tY, tM, tD] = todayStr.split('-').map(Number);
+  const todayIST = new Date(`${todayStr}T00:00:00.000+05:30`);
 
-  // Today Drop assigned to driver@test.com
-  const [dropTodayAcme, dropTodayTechNova] = await Promise.all([
-    prisma.deliveryDrop.upsert({
-      where: {
-        companyId_addressId_deliveryDate_deliveryTime: {
-          companyId: companyAcme.id,
-          addressId: addrAcme.id,
-          deliveryDate: today,
-          deliveryTime: '12:30',
-        },
-      },
-      update: { driverId: driverUser.id, status: DropStatus.OUT_FOR_DELIVERY },
-      create: { companyId: companyAcme.id, addressId: addrAcme.id, deliveryDate: today, deliveryTime: '12:30', status: DropStatus.OUT_FOR_DELIVERY, driverId: driverUser.id },
-    }),
-    prisma.deliveryDrop.upsert({
-      where: {
-        companyId_addressId_deliveryDate_deliveryTime: {
-          companyId: companyTechNova.id,
-          addressId: addrTechNova.id,
-          deliveryDate: today,
-          deliveryTime: '13:00',
-        },
-      },
-      update: { driverId: driverUser.id, status: DropStatus.DISPATCH_READY },
-      create: { companyId: companyTechNova.id, addressId: addrTechNova.id, deliveryDate: today, deliveryTime: '13:00', status: DropStatus.DISPATCH_READY, driverId: driverUser.id },
-    }),
-  ]);
+  const company1 = createdCompanies[0];
+  const company2 = createdCompanies[1];
 
-  // Seed Orders
+  const addr1 = company1.addresses[0];
+  const addr2 = company2.addresses[0];
+
+  const dropToday1 = await prisma.deliveryDrop.create({
+    data: {
+      companyId: company1.id,
+      addressId: addr1.id,
+      deliveryDate: todayIST,
+      deliveryTime: '12:30',
+      status: DropStatus.OUT_FOR_DELIVERY,
+      driverId: driverUser.id,
+    },
+  });
+
+  const dropToday2 = await prisma.deliveryDrop.create({
+    data: {
+      companyId: company2.id,
+      addressId: addr2.id,
+      deliveryDate: todayIST,
+      deliveryTime: '13:00',
+      status: DropStatus.DISPATCH_READY,
+      driverId: driverUser.id,
+    },
+  });
+
   let orderNum = 1001;
-  for (let dayOffset = -5; dayOffset <= 7; dayOffset++) {
-    const orderDate = new Date(today);
-    orderDate.setDate(today.getDate() + dayOffset);
+
+  for (let dayOffset = -3; dayOffset <= 5; dayOffset++) {
+    const oDate = new Date(todayIST);
+    oDate.setDate(todayIST.getDate() + dayOffset);
 
     const isPast = dayOffset < 0;
     const isToday = dayOffset === 0;
 
-    const emp1 = seededEmployeeList[Math.abs(dayOffset * 3) % seededEmployeeList.length];
-    const emp2 = seededEmployeeList[Math.abs(dayOffset * 5 + 1) % seededEmployeeList.length];
+    const emp1 = seededEmployees[Math.abs(dayOffset * 7) % seededEmployees.length];
+    const emp2 = seededEmployees[Math.abs(dayOffset * 11 + 3) % seededEmployees.length];
     const emps = [emp1, emp2];
 
     for (let i = 0; i < emps.length; i++) {
@@ -381,104 +439,101 @@ async function main() {
         status = OrderStatus.DELIVERED;
       } else if (isToday) {
         status = i === 0 ? OrderStatus.CONFIRMED : OrderStatus.PLACED;
-        dropId = emp.companyId === companyAcme.id ? dropTodayAcme.id : dropTodayTechNova.id;
+        dropId = emp.companyId === company1.id ? dropToday1.id : dropToday2.id;
       }
 
-      let order = await prisma.order.findFirst({
-        where: { employeeId: emp.id, deliveryDate: orderDate },
+      const oDateStr = oDate.toISOString().split('T')[0];
+      const deliveryTimeStr = '12:30';
+
+      // Timings in IST:
+      // Delivery = 12:30 PM IST
+      // Dispatch = 11:30 AM IST (1 hour before delivery)
+      // Expected Cooking Completion = 11:00 AM IST (1 hour 30 mins before delivery / 30 mins before dispatch)
+      const plannedDeliveryAt = new Date(`${oDateStr}T12:30:00.000+05:30`);
+      const plannedDispatchReadyAt = new Date(plannedDeliveryAt.getTime() - 60 * 60 * 1000); // 11:30 AM IST
+      const plannedKitchenReadyAt = new Date(plannedDeliveryAt.getTime() - 90 * 60 * 1000);  // 11:00 AM IST
+
+      const order = await prisma.order.create({
+        data: {
+          orderNumber: orderNum++,
+          employeeId: emp.id,
+          deliveryAddressId: emp.companyId === company1.id ? addr1.id : addr2.id,
+          deliveryDate: plannedDeliveryAt,
+          deliveryTime: deliveryTimeStr,
+          packagingType: 'Eco Box',
+          status,
+          totalCents: 15000, // ₹150.00
+          dropId,
+          plannedDispatchReadyAt,
+          plannedKitchenReadyAt,
+          kitchenStartedAt: isToday || isPast ? new Date(plannedKitchenReadyAt.getTime() - 30 * 60 * 1000) : null,
+          kitchenReadyAt: isPast ? plannedKitchenReadyAt : null,
+        },
       });
 
-      if (!order) {
-        order = await prisma.order.create({
-          data: {
-            orderNumber: orderNum++,
-            employeeId: emp.id,
-            deliveryAddressId: emp.companyId === companyAcme.id ? addrAcme.id : addrTechNova.id,
-            deliveryDate: orderDate,
-            deliveryTime: '12:30',
-            packagingType: 'Eco Box',
-            status,
-            totalCents: 1550,
-            dropId,
-            plannedDispatchReadyAt: new Date(orderDate.getTime() + 11 * 3600 * 1000 + 30 * 60 * 1000),
-            plannedKitchenReadyAt: new Date(orderDate.getTime() + 11 * 3600 * 1000),
-            kitchenStartedAt: isToday || isPast ? new Date(orderDate.getTime() + 10 * 3600 * 1000) : null,
-            kitchenReadyAt: isPast ? new Date(orderDate.getTime() + 11 * 3600 * 1000) : null,
-          },
-        });
-      } else {
-        order = await prisma.order.update({
-          where: { id: order.id },
-          data: { status, dropId: dropId || undefined },
-        });
-      }
+      const orderLine = await prisma.orderLine.create({
+        data: {
+          orderId: order.id,
+          dishId: dishPaneerBowl.id,
+          dishName: dishPaneerBowl.name,
+          dishSku: dishPaneerBowl.sku,
+          quantity: 1,
+          unitPriceCents: 15000,
+          totalCents: 15000,
+        },
+      });
 
-      let orderLine = await prisma.orderLine.findFirst({ where: { orderId: order.id } });
-      if (!orderLine) {
-        orderLine = await prisma.orderLine.create({
-          data: {
-            orderId: order.id,
-            dishId: dishPaneerBowl.id,
-            dishName: dishPaneerBowl.name,
-            dishSku: dishPaneerBowl.sku,
-            quantity: 1,
-            unitPriceCents: 1550,
-            totalCents: 1550,
-          },
-        });
-      }
-
-      let combo = await prisma.orderLineCombination.findFirst({ where: { orderLineId: orderLine.id } });
-      if (!combo) {
-        combo = await prisma.orderLineCombination.create({
-          data: {
-            orderLineId: orderLine.id,
-            quantity: 1,
-            unitPriceCents: 1550,
-            totalCents: 1550,
-          },
-        });
-      }
+      const combo = await prisma.orderLineCombination.create({
+        data: {
+          orderLineId: orderLine.id,
+          quantity: 1,
+          unitPriceCents: 15000,
+          totalCents: 15000,
+        },
+      });
 
       if (isToday || isPast) {
-        let prepUnit = await prisma.kitchenPrepUnit.findFirst({ where: { orderId: order.id } });
-        if (!prepUnit) {
-          await prisma.kitchenPrepUnit.create({
-            data: {
-              orderId: order.id,
-              orderLineCombinationId: combo.id,
-              stationName: 'Grill Station',
-              status: isPast ? PrepUnitStatus.DONE : PrepUnitStatus.STARTED,
-              startedAt: new Date(orderDate.getTime() + 10 * 3600 * 1000),
-              completedAt: isPast ? new Date(orderDate.getTime() + 11 * 3600 * 1000) : null,
-            },
-          });
-        }
+        await prisma.kitchenPrepUnit.create({
+          data: {
+            orderId: order.id,
+            orderLineCombinationId: combo.id,
+            stationName: 'Grill Station',
+            status: isPast ? PrepUnitStatus.DONE : PrepUnitStatus.STARTED,
+            startedAt: new Date(plannedKitchenReadyAt.getTime() - 30 * 60 * 1000),
+            completedAt: isPast ? plannedKitchenReadyAt : null,
+          },
+        });
       }
     }
   }
 
-  // 9. Invoices
+  // 9. Invoices in INR
   await Promise.all([
-    prisma.invoice.upsert({
-      where: { invoiceNumber: 'INV-2026-001' },
-      update: { totalCents: 12400, status: 'PAID' },
-      create: { invoiceNumber: 'INV-2026-001', companyId: companyAcme.id, totalCents: 12400, status: 'PAID', paidAt: new Date(today.getTime() - 2 * 24 * 3600 * 1000) },
+    prisma.invoice.create({
+      data: {
+        invoiceNumber: 'INV-2026-001',
+        companyId: company1.id,
+        totalCents: 150000, // ₹1,500.00
+        status: 'PAID',
+        paidAt: new Date(todayIST.getTime() - 2 * 24 * 3600 * 1000),
+      },
     }),
-    prisma.invoice.upsert({
-      where: { invoiceNumber: 'INV-2026-002' },
-      update: { totalCents: 9800, status: 'UNPAID' },
-      create: { invoiceNumber: 'INV-2026-002', companyId: companyTechNova.id, totalCents: 9800, status: 'UNPAID' },
+    prisma.invoice.create({
+      data: {
+        invoiceNumber: 'INV-2026-002',
+        companyId: company2.id,
+        totalCents: 140000, // ₹1,400.00
+        status: 'UNPAID',
+      },
     }),
   ]);
 
   console.log('✔ Operational data seeding completed cleanly!');
   console.log('Summary:');
-  console.log(`- Staff Accounts: 4 mandatory verified`);
-  console.log(`- Corporate Companies: 4`);
-  console.log(`- Corporate Employees: ${seededEmployeeList.length}`);
-  console.log(`- Today active delivery drop assigned to driver@test.com: ${dropTodayAcme.id}`);
-  console.log(`- Seeding completed with 100% idempotency & non-destructive safety!`);
+  console.log(`- Hyderabad Corporate Companies: 6`);
+  console.log(`- Hyderabad Corporate Employees: ${seededEmployees.length}`);
+  console.log(`- Currency: Indian Rupees (₹)`);
+  console.log(`- Seeding completed with 100% idempotency & safety!`);
 }
 
 main()

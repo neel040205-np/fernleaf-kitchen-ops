@@ -47,7 +47,22 @@ export default function KitchenBoardPage() {
 
   const formatTime = (timeInput?: string | Date) => {
     if (!timeInput) return '--:--';
-    const d = new Date(timeInput);
+    let d: Date;
+    if (typeof timeInput === 'string' && timeInput.includes(':') && !timeInput.includes('T')) {
+      const [hStr, mStr] = timeInput.split(':');
+      const h = parseInt(hStr, 10);
+      const m = parseInt(mStr, 10);
+      if (!isNaN(h) && !isNaN(m)) {
+        const dateToday = new Date().toISOString().split('T')[0];
+        const hh = String(h).padStart(2, '0');
+        const mm = String(m).padStart(2, '0');
+        d = new Date(`${dateToday}T${hh}:${mm}:00.000+05:30`);
+      } else {
+        d = new Date(timeInput);
+      }
+    } else {
+      d = new Date(timeInput);
+    }
     if (isNaN(d.getTime())) return String(timeInput);
     return d.toLocaleTimeString('en-IN', {
       timeZone: 'Asia/Kolkata',
@@ -165,7 +180,7 @@ export default function KitchenBoardPage() {
                     </div>
                     <div className="flex items-center justify-between text-[11px] text-slate-600 pt-1 border-t border-amber-200/50">
                       <span>Dispatch: <strong>{formatTime(unit.plannedDispatchReadyAt || unit.order?.plannedDispatchReadyAt)}</strong></span>
-                      <span>Delivery: <strong>{unit.order?.deliveryTime || '12:00'} IST</strong></span>
+                      <span>Delivery: <strong>{formatTime(unit.order?.deliveryTime || '12:00')}</strong></span>
                     </div>
                     <p className="text-[10px] text-amber-700 font-semibold">
                       • 1:30 (hr:min) before delivery | 0:30 (hr:min) before dispatch
