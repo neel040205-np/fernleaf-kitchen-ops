@@ -49,6 +49,9 @@ export default function OrdersPage() {
   const [orderDeliveryTime, setOrderDeliveryTime] = useState('12:30');
   const [orderPackaging, setOrderPackaging] = useState('Eco Box');
   const [orderStatus, setOrderStatus] = useState<string>('PLACED');
+  const [orderCancellationReason, setOrderCancellationReason] = useState<string>(
+    "Kitchen didn't prepare on time (Scheduled cooking completion deadline passed)"
+  );
   const [selectedDishId, setSelectedDishId] = useState('');
   const [comboQty, setComboQty] = useState(1);
   const [selectedOptionIds, setSelectedOptionIds] = useState<string[]>([]);
@@ -186,6 +189,9 @@ export default function OrdersPage() {
     setOrderLines([]);
     setComboQty(1);
     setOrderStatus('PLACED');
+    setOrderCancellationReason(
+      "Kitchen didn't prepare on time (Scheduled cooking completion deadline passed)"
+    );
     setModalError('');
   };
 
@@ -217,6 +223,9 @@ export default function OrdersPage() {
     setOrderDeliveryTime(ord.deliveryTime || '12:30');
     setOrderPackaging(ord.packagingType || 'Eco Box');
     setOrderStatus(ord.status || 'PLACED');
+    setOrderCancellationReason(
+      ord.cancellationReason || "Kitchen didn't prepare on time (Scheduled cooking completion deadline passed)"
+    );
 
     // Pre-populate order lines
     const formattedLines = ord.lines?.map((line: any) => ({
@@ -565,6 +574,8 @@ export default function OrdersPage() {
                         ? 'bg-blue-100 text-blue-800'
                         : viewingOrder.status === 'PLACED'
                         ? 'bg-amber-100 text-amber-800'
+                        : viewingOrder.status === 'CANCELLED'
+                        ? 'bg-rose-100 text-rose-800'
                         : 'bg-slate-100 text-slate-600'
                     }`}
                   >
@@ -575,6 +586,22 @@ export default function OrdersPage() {
                   <X className="w-5 h-5" />
                 </button>
               </div>
+
+              {/* Cancellation Reason Note Box */}
+              {(viewingOrder.status === 'CANCELLED' || viewingOrder.status === 'REJECTED') && (
+                <div className="p-3.5 bg-rose-50 border border-rose-200 rounded-xl space-y-1">
+                  <div className="flex items-center gap-1.5 text-rose-700 font-extrabold text-xs">
+                    <AlertTriangle className="w-4 h-4 text-rose-600 shrink-0" />
+                    <span>Cancellation Reason / Note</span>
+                  </div>
+                  <p className="text-xs text-rose-900 font-semibold leading-relaxed">
+                    {viewingOrder.cancellationReason ||
+                      (viewingOrder.kitchenReadyAt === null
+                        ? "Kitchen didn't prepare on time (Scheduled cooking completion deadline passed)"
+                        : "Time window exceeded / Order cancelled prior to dispatch")}
+                  </p>
+                </div>
+              )}
 
               {/* Order Logistics Summary */}
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
@@ -768,6 +795,40 @@ export default function OrdersPage() {
                           <option value="DELIVERED">DELIVERED</option>
                           <option value="CANCELLED">CANCELLED</option>
                         </select>
+                      </div>
+                    )}
+
+                    {isEditing && orderStatus === 'CANCELLED' && (
+                      <div className="col-span-1 sm:col-span-2 p-3 bg-rose-50 border border-rose-200 rounded-xl space-y-2">
+                        <label className="block font-bold text-rose-900 text-xs flex items-center gap-1.5">
+                          <AlertTriangle className="w-3.5 h-3.5 text-rose-600 shrink-0" />
+                          Cancellation Reason / Note
+                        </label>
+                        <select
+                          value={orderCancellationReason}
+                          onChange={(e) => setOrderCancellationReason(e.target.value)}
+                          className="w-full p-2.5 rounded-lg border border-rose-300 text-xs bg-white font-semibold text-rose-900"
+                        >
+                          <option value="Kitchen didn't prepare on time (Scheduled cooking completion deadline passed)">
+                            Kitchen didn't prepare on time
+                          </option>
+                          <option value="Time window exceeded / Order cutoff deadline passed for delivery date">
+                            Time window exceeded / Cutoff deadline passed
+                          </option>
+                          <option value="Customer / Corporate Employee requested cancellation">
+                            Customer / Corporate Employee requested cancellation
+                          </option>
+                          <option value="Food items out of stock / Kitchen capacity full">
+                            Food items out of stock / Kitchen capacity full
+                          </option>
+                        </select>
+                        <input
+                          type="text"
+                          placeholder="Or enter a custom cancellation note..."
+                          value={orderCancellationReason}
+                          onChange={(e) => setOrderCancellationReason(e.target.value)}
+                          className="w-full p-2.5 rounded-lg border border-rose-300 text-xs bg-white font-medium text-slate-800"
+                        />
                       </div>
                     )}
                   </div>
@@ -1006,6 +1067,7 @@ export default function OrdersPage() {
                             deliveryTime: orderDeliveryTime,
                             packagingType: orderPackaging,
                             status: orderStatus,
+                            cancellationReason: orderStatus === 'CANCELLED' ? orderCancellationReason : undefined,
                             lines: orderLines,
                           },
                         });

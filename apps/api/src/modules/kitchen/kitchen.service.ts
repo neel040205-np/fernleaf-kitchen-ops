@@ -61,7 +61,10 @@ export class KitchenService {
       const overdueIds = overdueOrders.map((o) => o.id);
       await this.prisma.order.updateMany({
         where: { id: { in: overdueIds } },
-        data: { status: OrderStatus.CANCELLED },
+        data: {
+          status: OrderStatus.CANCELLED,
+          cancellationReason: "Kitchen didn't prepare on time (Scheduled cooking completion deadline passed)",
+        },
       });
     }
 

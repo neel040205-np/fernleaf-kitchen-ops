@@ -511,6 +511,7 @@ export class OrdersService {
       deliveryTime?: string;
       packagingType?: string;
       status?: OrderStatus;
+      cancellationReason?: string;
       lines?: Array<{
         dishId: string;
         quantity: number;
@@ -693,6 +694,12 @@ export class OrdersService {
       // Delete existing lines
       await this.prisma.orderLine.deleteMany({ where: { orderId } });
 
+      const resolvedCancellationReason =
+        data.cancellationReason ||
+        (targetStatus === OrderStatus.CANCELLED
+          ? existingOrder.cancellationReason || 'Cancelled by user request'
+          : null);
+
       // Create new lines
       await this.prisma.order.update({
         where: { id: orderId },
@@ -702,6 +709,7 @@ export class OrdersService {
           deliveryTime,
           packagingType,
           status: targetStatus,
+          cancellationReason: resolvedCancellationReason,
           totalCents: orderTotalCents,
           plannedDispatchReadyAt,
           plannedKitchenReadyAt,
@@ -709,6 +717,12 @@ export class OrdersService {
         },
       });
     } else {
+      const resolvedCancellationReason =
+        data.cancellationReason ||
+        (targetStatus === OrderStatus.CANCELLED
+          ? existingOrder.cancellationReason || 'Cancelled by user request'
+          : null);
+
       await this.prisma.order.update({
         where: { id: orderId },
         data: {
@@ -717,6 +731,7 @@ export class OrdersService {
           deliveryTime,
           packagingType,
           status: targetStatus,
+          cancellationReason: resolvedCancellationReason,
           plannedDispatchReadyAt,
           plannedKitchenReadyAt,
         },
@@ -772,7 +787,10 @@ export class OrdersService {
         deliveryDate: { gte: targetDate, lt: nextDate },
         status: OrderStatus.DRAFT,
       },
-      data: { status: OrderStatus.CANCELLED },
+      data: {
+        status: OrderStatus.CANCELLED,
+        cancellationReason: "Time window exceeded / Order cutoff deadline passed for delivery date",
+      },
     });
 
     // Confirm all PLACED orders
