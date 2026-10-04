@@ -15,7 +15,7 @@ import {
   Percent,
   Calculator,
   Building2,
-  DollarSign,
+  IndianRupee,
   TrendingUp,
 } from 'lucide-react';
 
@@ -217,7 +217,7 @@ export default function PricingPage() {
                   <h2 className="text-lg font-bold text-slate-900">{selectedTier.name} Tier Price Matrix</h2>
                 </div>
                 <p className="text-xs text-slate-500 mt-1">
-                  Derived prices dynamically round UP to the next 5 cents ($2.11 → $2.15). Manual overrides strictly supersede derivation rules.
+                  Derived prices dynamically round UP to the next 5 paise (₹2.11 → ₹2.15). Manual overrides strictly supersede derivation rules.
                 </p>
               </div>
 
@@ -233,7 +233,7 @@ export default function PricingPage() {
                     <th className="p-3">Dish Name</th>
                     <th className="p-3">SKU</th>
                     <th className="p-3">Base Cost Price</th>
-                    <th className="p-3">Resolved Price ($)</th>
+                    <th className="p-3">Resolved Price (₹)</th>
                     <th className="p-3">Gross Margin</th>
                     <th className="p-3">Pricing Status</th>
                     <th className="p-3 text-right">Actions</th>
@@ -463,9 +463,9 @@ export default function PricingPage() {
                 </div>
 
                 <div>
-                  <label className="block font-semibold text-slate-700 mb-1">Override Price ($ USD) *</label>
+                  <label className="block font-semibold text-slate-700 mb-1">Override Price (₹ INR) *</label>
                   <div className="relative">
-                    <span className="absolute left-3 top-2.5 text-slate-400 font-bold text-base">$</span>
+                    <span className="absolute left-3 top-2.5 text-slate-400 font-bold text-base">₹</span>
                     <input
                       type="text"
                       required

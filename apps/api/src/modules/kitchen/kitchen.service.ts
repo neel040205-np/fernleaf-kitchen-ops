@@ -47,6 +47,24 @@ export class KitchenService {
 
     const now = new Date();
 
+    // Auto-cancel past-due unfulfilled orders whose planned kitchen ready time has passed
+    const overdueOrders = await this.prisma.order.findMany({
+      where: {
+        deliveryDate: { gte: targetDate, lt: nextDate },
+        plannedKitchenReadyAt: { lt: now },
+        status: OrderStatus.CONFIRMED,
+        kitchenReadyAt: null,
+      },
+    });
+
+    if (overdueOrders.length > 0) {
+      const overdueIds = overdueOrders.map((o) => o.id);
+      await this.prisma.order.updateMany({
+        where: { id: { in: overdueIds } },
+        data: { status: OrderStatus.CANCELLED },
+      });
+    }
+
     const formattedUnits = prepUnits.map((unit) => {
       const delDateStr = unit.order.deliveryDate.toISOString().split('T')[0];
       const deliveryTime = unit.order.deliveryTime || '12:00';

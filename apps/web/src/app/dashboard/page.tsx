@@ -9,7 +9,7 @@ import { formatUsd } from '../../lib/money';
 import Link from 'next/link';
 import {
   ShoppingBag,
-  DollarSign,
+  IndianRupee,
   Building2,
   ChefHat,
   Truck,
@@ -27,7 +27,6 @@ export default function DashboardPage() {
     queryFn: () => fetchApi('/dashboards'),
     enabled: !!user,
   });
-
 
   if (isLoading) {
     return (
@@ -63,7 +62,7 @@ export default function DashboardPage() {
                   <p className="text-2xl font-bold text-slate-900 mt-1">{formatUsd(metrics.totalRevenueCents || 0)}</p>
                 </div>
                 <div className="w-10 h-10 rounded-lg bg-emerald-50 text-emerald-600 flex items-center justify-center">
-                  <DollarSign className="w-5 h-5" />
+                  <IndianRupee className="w-5 h-5" />
                 </div>
               </div>
 
@@ -130,7 +129,7 @@ export default function DashboardPage() {
                     href="/billing"
                     className="p-4 rounded-lg border border-slate-200 hover:border-purple-500 hover:bg-purple-50/30 transition group"
                   >
-                    <DollarSign className="w-5 h-5 text-purple-600 mb-2" />
+                    <IndianRupee className="w-5 h-5 text-purple-600 mb-2" />
                     <p className="text-sm font-bold text-slate-900 group-hover:text-purple-700">Invoices & Billing</p>
                     <p className="text-xs text-slate-500">Company billing records</p>
                   </Link>

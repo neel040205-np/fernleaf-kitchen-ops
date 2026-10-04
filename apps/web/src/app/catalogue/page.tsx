@@ -412,7 +412,7 @@ export default function CataloguePage() {
                       <th className="p-4">Dish</th>
                       <th className="p-4">SKU</th>
                       <th className="p-4">Category</th>
-                      <th className="p-4">Cost Price ($)</th>
+                      <th className="p-4">Cost Price (₹)</th>
                       <th className="p-4">Station</th>
                       <th className="p-4">Temp</th>
                       <th className="p-4">Status Toggle</th>
@@ -850,23 +850,23 @@ export default function CataloguePage() {
                 {/* Financials & Temperature */}
                 <div className="grid grid-cols-3 gap-3 bg-slate-50 p-3 rounded-xl border border-slate-200">
                   <div>
-                    <label className="block font-semibold text-slate-700 mb-1">Cost Price ($) *</label>
+                    <label className="block font-semibold text-slate-700 mb-1">Cost Price (₹) *</label>
                     <div className="relative">
-                      <span className="absolute left-3 top-2.5 text-slate-400 font-bold">$</span>
+                      <span className="absolute left-3 top-2.5 text-slate-400 font-bold">₹</span>
                       <input
                         type="text"
                         required
                         value={dishForm.costPriceDollars}
                         onChange={(e) => setDishForm({ ...dishForm, costPriceDollars: e.target.value })}
-                        placeholder="4.50"
+                        placeholder="60.00"
                         className="w-full pl-7 pr-3 py-2 rounded-lg border border-slate-300 text-sm font-semibold"
                       />
                     </div>
                   </div>
                   <div>
-                    <label className="block font-semibold text-slate-700 mb-1">Standard Tier Price ($) *</label>
+                    <label className="block font-semibold text-slate-700 mb-1">Standard Tier Price (₹) *</label>
                     <div className="relative">
-                      <span className="absolute left-3 top-2.5 text-slate-400 font-bold">$</span>
+                      <span className="absolute left-3 top-2.5 text-slate-400 font-bold">₹</span>
                       <input
                         type="text"
                         required

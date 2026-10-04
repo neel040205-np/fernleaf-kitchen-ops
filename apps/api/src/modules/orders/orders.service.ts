@@ -337,6 +337,24 @@ export class OrdersService {
     const mmStr = String(isNaN(delM) ? 0 : delM).padStart(2, '0');
     const plannedDeliveryDateTime = new Date(`${deliveryDateStr}T${hhStr}:${mmStr}:00.000+05:30`);
 
+    const nowIST = new Date();
+    const todayISTStr = nowIST.toLocaleDateString('sv-SE', { timeZone: 'Asia/Kolkata' }); // YYYY-MM-DD
+    if (deliveryDateStr === todayISTStr && userRole !== Role.ADMIN) {
+      const diffMinutes = (plannedDeliveryDateTime.getTime() - nowIST.getTime()) / (1000 * 60);
+      if (diffMinutes < 150) {
+        const minAllowedTime = new Date(nowIST.getTime() + 150 * 60 * 1000);
+        const minTimeStr = minAllowedTime.toLocaleTimeString('en-IN', {
+          timeZone: 'Asia/Kolkata',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: true,
+        });
+        throw new BadRequestException(
+          `Orders for today must be placed at least 2 hours 30 minutes prior to delivery time. Requested delivery: ${deliveryTime}, but the earliest allowed delivery time for today is ${minTimeStr} IST.`
+        );
+      }
+    }
+
     const leadMins = employee.company.deliveryLeadMinutes || 60;
     const plannedDispatchReadyAt = new Date(plannedDeliveryDateTime.getTime() - leadMins * 60 * 1000);
     // Expected Cooking Completion: 1:30 (90 min) before delivery & 0:30 before dispatch
@@ -540,6 +558,23 @@ export class OrdersService {
     const hhStr = String(isNaN(delH) ? 12 : delH).padStart(2, '0');
     const mmStr = String(isNaN(delM) ? 0 : delM).padStart(2, '0');
     const plannedDeliveryDateTime = new Date(`${deliveryDateStr}T${hhStr}:${mmStr}:00.000+05:30`);
+
+    const todayISTStr = now.toLocaleDateString('sv-SE', { timeZone: 'Asia/Kolkata' });
+    if (deliveryDateStr === todayISTStr && userRole !== Role.ADMIN) {
+      const diffMinutes = (plannedDeliveryDateTime.getTime() - now.getTime()) / (1000 * 60);
+      if (diffMinutes < 150) {
+        const minAllowedTime = new Date(now.getTime() + 150 * 60 * 1000);
+        const minTimeStr = minAllowedTime.toLocaleTimeString('en-IN', {
+          timeZone: 'Asia/Kolkata',
+          hour: '2-digit',
+          minute: '2-digit',
+          hour12: true,
+        });
+        throw new BadRequestException(
+          `Orders for today must be placed at least 2 hours 30 minutes prior to delivery time. Requested delivery: ${deliveryTime}, but the earliest allowed delivery time for today is ${minTimeStr} IST.`
+        );
+      }
+    }
 
     const leadMins = employee.company.deliveryLeadMinutes || 60;
     const plannedDispatchReadyAt = new Date(plannedDeliveryDateTime.getTime() - leadMins * 60 * 1000);

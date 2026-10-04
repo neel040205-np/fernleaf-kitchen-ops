@@ -28,6 +28,7 @@ import {
   X,
 } from 'lucide-react';
 import { useAuth } from '../../lib/auth-context';
+import { formatUsd } from '../../lib/money';
 
 export default function OrdersPage() {
   const { user } = useAuth();
@@ -145,7 +146,6 @@ export default function OrdersPage() {
     },
   });
 
-  const formatUsd = (cents: number) => `$${(cents / 100).toFixed(2)}`;
 
   const formatTime = (timeInput?: string | Date) => {
     if (!timeInput) return '--:--';
