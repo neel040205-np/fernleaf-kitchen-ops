@@ -122,7 +122,7 @@ erDiagram
 | Requirement | Compliance & Implementation Details |
 | :--- | :--- |
 | **1. Correctness of Money** | Zero floating-point arithmetic. All monetary values (`costCents`, `unitPriceCents`, `totalCents`) are calculated and stored as **integer cents** (`Int`). Order total strictly equals `sum(line.totalCents)` and Invoice total strictly equals `sum(order.totalCents)` without rounding drift. |
-| **2. Time Zones** | Assumed Kitchen Time Zone is **UTC**. Dates and cut-offs use pure UTC parsing (`parseDateUTC`) so cut-offs, delivery dates, and "today" operate identically regardless of browser or server locale. |
+| **2. Time Zones** | Operational Time Zone is **Indian Standard Time (IST / Asia/Kolkata, UTC+05:30)**. All date/time calculations, cut-offs, delivery times, and expected cooking completion times operate explicitly in IST across the NestJS backend and Next.js frontend UI. Expected cooking completion time (`plannedKitchenReadyAt`) is calculated as **1:30 (1 hour 30 minutes)** before Delivery Time and **0:30 (30 minutes)** before Dispatch Ready Time. |
 | **3. Concurrency** | Race conditions prevented via atomic database transitions (`prisma.$transaction`) and status check guards (`PENDING` -> `STARTED` -> `DONE`). Concurrent staff actions on orders or prep units cannot corrupt database state. |
 | **4. Server Validation** | Input strictly validated on backend via NestJS `ValidationPipe` and DTO schemas. Actionable error messages are returned in HTTP 400 responses and rendered cleanly in UI error banners. |
 | **5. Performance & Pagination** | Server-side pagination (`take`/`skip`) applied on orders, employees, and invoices. Kitchen board uses optimized date-indexed queries maintaining high responsiveness even under 400+ daily orders. |

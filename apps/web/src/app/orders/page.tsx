@@ -151,7 +151,12 @@ export default function OrdersPage() {
     if (!timeInput) return '--:--';
     const d = new Date(timeInput);
     if (isNaN(d.getTime())) return String(timeInput);
-    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
+    return d.toLocaleTimeString('en-IN', {
+      timeZone: 'Asia/Kolkata',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true,
+    });
   };
 
   const closeModal = () => {
@@ -535,16 +540,19 @@ export default function OrdersPage() {
 
                 <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
                   <p className="font-bold text-slate-900 flex items-center gap-1.5">
-                    <Clock className="w-3.5 h-3.5 text-amber-600" /> Timings & Packaging
+                    <Clock className="w-3.5 h-3.5 text-amber-600" /> Timings & Packaging (IST)
                   </p>
                   <p className="text-slate-800">
                     Delivery Date: <strong>{new Date(viewingOrder.deliveryDate).toISOString().split('T')[0]}</strong>
                   </p>
                   <p className="text-slate-800">
-                    Delivery Time: <strong>{viewingOrder.deliveryTime}</strong>
+                    Delivery Time: <strong>{viewingOrder.deliveryTime} IST</strong>
                   </p>
                   <p className="text-amber-800 font-semibold">
                     Expected Cooking Completion: <strong>{formatTime(viewingOrder.plannedKitchenReadyAt)}</strong>
+                  </p>
+                  <p className="text-[10px] text-amber-700 font-medium">
+                    (1:30 hr:min before delivery | 0:30 hr:min before dispatch)
                   </p>
                   <p className="text-slate-500">Packaging: {viewingOrder.packagingType}</p>
                 </div>

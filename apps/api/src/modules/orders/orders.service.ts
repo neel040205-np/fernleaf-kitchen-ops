@@ -331,14 +331,16 @@ export class OrdersService {
     const resolvedTierId = employee.company.priceTierId || (await this.prisma.priceTier.findFirst({ where: { isDefault: true } }))?.id;
     if (!resolvedTierId) throw new BadRequestException('No valid price tier resolved');
 
-    // Calculate Planned Ready Times
+    // Calculate Planned Ready Times in IST (+05:30)
     const [delH, delM] = deliveryTime.split(':').map(Number);
-    const plannedDeliveryDateTime = new Date(deliveryDateObj);
-    plannedDeliveryDateTime.setHours(isNaN(delH) ? 12 : delH, isNaN(delM) ? 0 : delM, 0, 0);
+    const hhStr = String(isNaN(delH) ? 12 : delH).padStart(2, '0');
+    const mmStr = String(isNaN(delM) ? 0 : delM).padStart(2, '0');
+    const plannedDeliveryDateTime = new Date(`${deliveryDateStr}T${hhStr}:${mmStr}:00.000+05:30`);
 
     const leadMins = employee.company.deliveryLeadMinutes || 60;
     const plannedDispatchReadyAt = new Date(plannedDeliveryDateTime.getTime() - leadMins * 60 * 1000);
-    const plannedKitchenReadyAt = new Date(plannedDispatchReadyAt.getTime() - 30 * 60 * 1000);
+    // Expected Cooking Completion: 1:30 (90 min) before delivery & 0:30 before dispatch
+    const plannedKitchenReadyAt = new Date(plannedDeliveryDateTime.getTime() - 90 * 60 * 1000);
 
     let orderTotalCents = 0;
     const lineCreations = [];
@@ -533,14 +535,16 @@ export class OrdersService {
       employee.company.priceTierId || (await this.prisma.priceTier.findFirst({ where: { isDefault: true } }))?.id;
     if (!resolvedTierId) throw new BadRequestException('No valid price tier resolved');
 
-    // Calculate Planned Ready Times
+    // Calculate Planned Ready Times in IST (+05:30)
     const [delH, delM] = deliveryTime.split(':').map(Number);
-    const plannedDeliveryDateTime = new Date(deliveryDateObj);
-    plannedDeliveryDateTime.setHours(delH, delM, 0, 0);
+    const hhStr = String(isNaN(delH) ? 12 : delH).padStart(2, '0');
+    const mmStr = String(isNaN(delM) ? 0 : delM).padStart(2, '0');
+    const plannedDeliveryDateTime = new Date(`${deliveryDateStr}T${hhStr}:${mmStr}:00.000+05:30`);
 
     const leadMins = employee.company.deliveryLeadMinutes || 60;
     const plannedDispatchReadyAt = new Date(plannedDeliveryDateTime.getTime() - leadMins * 60 * 1000);
-    const plannedKitchenReadyAt = new Date(plannedDispatchReadyAt.getTime() - 30 * 60 * 1000);
+    // Expected Cooking Completion: 1:30 (90 min) before delivery & 0:30 before dispatch
+    const plannedKitchenReadyAt = new Date(plannedDeliveryDateTime.getTime() - 90 * 60 * 1000);
 
     let orderTotalCents = existingOrder.totalCents;
 
