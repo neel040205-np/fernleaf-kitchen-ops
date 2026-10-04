@@ -91,8 +91,8 @@ export function AppLayout({ children }: { children: React.ReactNode }) {
       >
         <div className="p-5 border-b border-slate-800 flex items-center justify-between">
           <div className="flex items-center gap-3">
-            <div className="w-9 h-9 rounded-lg bg-emerald-600 flex items-center justify-center font-bold text-lg text-white">
-              F
+            <div className="w-10 h-10 rounded-xl bg-white p-1 flex items-center justify-center shrink-0 shadow-xs">
+              <img src="/logo.png" alt="Fernleaf Kitchen Logo" className="w-full h-full object-contain" />
             </div>
             <div>
               <h1 className="font-bold text-base leading-tight text-slate-100">Fernleaf Kitchen</h1>

@@ -65,12 +65,18 @@ export default function LoginPage() {
   return (
     <div className="min-h-screen bg-slate-900 flex items-center justify-center p-4">
       <div className="w-full max-w-md bg-white rounded-2xl shadow-xl overflow-hidden border border-slate-100 p-8 space-y-6">
-        <div className="text-center space-y-2">
-          <div className="w-12 h-12 rounded-xl bg-emerald-600 text-white font-black text-2xl mx-auto flex items-center justify-center shadow-lg shadow-emerald-600/30">
-            F
+        <div className="text-center space-y-3">
+          <div className="bg-emerald-50/50 p-4 rounded-2xl border border-emerald-100/60 inline-block shadow-xs">
+            <img
+              src="/logo.png"
+              alt="Fernleaf Kitchen Logo"
+              className="w-32 sm:w-36 h-auto mx-auto object-contain"
+            />
           </div>
-          <h1 className="text-2xl font-bold text-slate-900">Fernleaf Kitchen</h1>
-          <p className="text-sm text-slate-500">Operations & Admin Portal</p>
+          <div>
+            <h1 className="text-2xl font-black text-slate-900 tracking-tight">Fernleaf Kitchen</h1>
+            <p className="text-xs text-slate-500 font-semibold uppercase tracking-wider mt-1">Operations & Admin Portal</p>
+          </div>
         </div>
 
         {error && (

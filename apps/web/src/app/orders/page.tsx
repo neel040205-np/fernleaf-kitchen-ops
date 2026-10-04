@@ -67,7 +67,7 @@ export default function OrdersPage() {
     queryKey: ['orders', selectedStatus, selectedCompanyId, searchQuery, page],
     queryFn: () =>
       fetchApi(
-        `/orders?page=${page}&limit=10${selectedStatus ? `&status=${selectedStatus}` : ''}${
+        `/orders?page=${page}&limit=50${selectedStatus ? `&status=${selectedStatus}` : ''}${
           selectedCompanyId ? `&companyId=${selectedCompanyId}` : ''
         }${searchQuery ? `&search=${encodeURIComponent(searchQuery)}` : ''}`,
       ),
@@ -514,6 +514,36 @@ export default function OrdersPage() {
                 })}
               </tbody>
             </table>
+          )}
+
+          {/* Pagination Footer */}
+          {ordersData && ordersData.total > 0 && (
+            <div className="px-4 py-3 bg-slate-50 border-t border-slate-200 flex flex-col sm:flex-row items-center justify-between gap-3 text-xs text-slate-600">
+              <div>
+                Showing <strong>{((page - 1) * 50) + 1}</strong> to <strong>{Math.min(page * 50, ordersData.total)}</strong> of <strong>{ordersData.total}</strong> orders (50 orders per page)
+              </div>
+              {ordersData.totalPages > 1 && (
+                <div className="flex items-center gap-2">
+                  <button
+                    disabled={page <= 1}
+                    onClick={() => setPage((p) => Math.max(1, p - 1))}
+                    className="px-3 py-1.5 bg-white border border-slate-300 rounded-md font-semibold hover:bg-slate-100 disabled:opacity-50 transition"
+                  >
+                    Previous
+                  </button>
+                  <span className="font-bold text-slate-800">
+                    Page {page} of {ordersData.totalPages}
+                  </span>
+                  <button
+                    disabled={page >= ordersData.totalPages}
+                    onClick={() => setPage((p) => p + 1)}
+                    className="px-3 py-1.5 bg-white border border-slate-300 rounded-md font-semibold hover:bg-slate-100 disabled:opacity-50 transition"
+                  >
+                    Next
+                  </button>
+                </div>
+              )}
+            </div>
           )}
         </div>
 
