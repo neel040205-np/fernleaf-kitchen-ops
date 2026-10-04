@@ -132,6 +132,105 @@ export class PricingService {
     return option.costPriceCents;
   }
 
+  async resolveBulkPrices(
+    dishes: Array<{ id: string; costPriceCents: number }>,
+    options: Array<{ id: string; costPriceCents: number }>,
+    targetTierId: string,
+  ) {
+    const dishIds = dishes.map((d) => d.id);
+    const optionIds = options.map((o) => o.id);
+
+    const [tiers, dishPricesRaw, optionPricesRaw] = await Promise.all([
+      this.prisma.priceTier.findMany(),
+      dishIds.length > 0
+        ? this.prisma.dishTierPrice.findMany({ where: { dishId: { in: dishIds } } })
+        : Promise.resolve([]),
+      optionIds.length > 0
+        ? this.prisma.optionTierPrice.findMany({ where: { optionId: { in: optionIds } } })
+        : Promise.resolve([]),
+    ]);
+
+    const tierMap = new Map(tiers.map((t) => [t.id, t]));
+    const defaultTier = tiers.find((t) => t.isDefault);
+
+    const dishPriceIndex = new Map(dishPricesRaw.map((p) => [`${p.dishId}_${p.tierId}`, p]));
+    const optionPriceIndex = new Map(optionPricesRaw.map((p) => [`${p.optionId}_${p.tierId}`, p]));
+
+    const dishCostMap = new Map(dishes.map((d) => [d.id, d.costPriceCents]));
+    const optionCostMap = new Map(options.map((o) => [o.id, o.costPriceCents]));
+
+    const resolveDish = (dishId: string, tierId: string): number | null => {
+      const override = dishPriceIndex.get(`${dishId}_${tierId}`);
+      if (override && override.isOverride) return override.priceCents;
+
+      const tier = tierMap.get(tierId);
+      if (!tier) return null;
+
+      const costPriceCents = dishCostMap.get(dishId) || 0;
+
+      if (override && tier.derivationType === TierDerivationType.NONE) {
+        return override.priceCents;
+      }
+
+      if (tier.derivationType === TierDerivationType.MULTIPLIER_OF_COST && tier.multiplier) {
+        return calculateDerivedPriceCents(costPriceCents, tier.multiplier);
+      }
+
+      if (tier.derivationType === TierDerivationType.PERCENTAGE_OF_TIER && tier.baseTierId && tier.multiplier) {
+        const basePrice = resolveDish(dishId, tier.baseTierId);
+        if (basePrice === null) return null;
+        return calculateDerivedPriceCents(basePrice, tier.multiplier);
+      }
+
+      if (override) return override.priceCents;
+
+      if (!tier.isDefault && defaultTier && defaultTier.id !== tierId) {
+        return resolveDish(dishId, defaultTier.id);
+      }
+
+      return null;
+    };
+
+    const resolveOption = (optionId: string, tierId: string): number => {
+      const override = optionPriceIndex.get(`${optionId}_${tierId}`);
+      if (override) return override.priceCents;
+
+      const tier = tierMap.get(tierId);
+      const costPriceCents = optionCostMap.get(optionId) || 0;
+      if (!tier) return costPriceCents;
+
+      if (tier.derivationType === TierDerivationType.MULTIPLIER_OF_COST && tier.multiplier) {
+        return calculateDerivedPriceCents(costPriceCents, tier.multiplier);
+      }
+
+      if (tier.derivationType === TierDerivationType.PERCENTAGE_OF_TIER && tier.baseTierId && tier.multiplier) {
+        const basePrice = resolveOption(optionId, tier.baseTierId);
+        return calculateDerivedPriceCents(basePrice, tier.multiplier);
+      }
+
+      if (!tier.isDefault && defaultTier && defaultTier.id !== tierId) {
+        return resolveOption(optionId, defaultTier.id);
+      }
+
+      return costPriceCents;
+    };
+
+    const dishResolvedMap = new Map<string, number | null>();
+    for (const d of dishes) {
+      dishResolvedMap.set(d.id, resolveDish(d.id, targetTierId));
+    }
+
+    const optionResolvedMap = new Map<string, number>();
+    for (const o of options) {
+      optionResolvedMap.set(o.id, resolveOption(o.id, targetTierId));
+    }
+
+    return {
+      getDishPrice: (dishId: string) => dishResolvedMap.get(dishId) ?? null,
+      getOptionPrice: (optionId: string) => optionResolvedMap.get(optionId) ?? 0,
+    };
+  }
+
   async setDishPriceOverride(dishId: string, tierId: string, priceCents: number) {
     return this.prisma.dishTierPrice.upsert({
       where: { dishId_tierId: { dishId, tierId } },

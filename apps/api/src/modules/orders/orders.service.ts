@@ -75,13 +75,24 @@ export class OrdersService {
       },
     });
 
+    const allDishes = categories.flatMap((c) => c.dishes);
+    const allOptions = allDishes.flatMap((d) =>
+      d.optionGroups.flatMap((og) => og.optionGroup.options),
+    );
+
+    const priceResolver = await this.pricingService.resolveBulkPrices(
+      allDishes.map((d) => ({ id: d.id, costPriceCents: d.costPriceCents })),
+      allOptions.map((o) => ({ id: o.id, costPriceCents: o.costPriceCents })),
+      resolvedTierId,
+    );
+
     const resultCategories = [];
 
     for (const cat of categories) {
       const validDishes = [];
 
       for (const dish of cat.dishes) {
-        const dishPriceCents = await this.pricingService.resolveDishPriceForTier(dish.id, resolvedTierId);
+        const dishPriceCents = priceResolver.getDishPrice(dish.id);
 
         // Rule: A dish with no price on the employee's tier MUST NOT appear on their menu at all
         if (dishPriceCents === null || dishPriceCents <= 0) {
@@ -94,7 +105,7 @@ export class OrdersService {
           const options = [];
 
           for (const opt of og.options) {
-            const optPriceCents = await this.pricingService.resolveOptionPriceForTier(opt.id, resolvedTierId);
+            const optPriceCents = priceResolver.getOptionPrice(opt.id);
             options.push({
               ...opt,
               allergens: JSON.parse(opt.allergensJson || '[]'),

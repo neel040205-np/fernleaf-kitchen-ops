@@ -87,6 +87,8 @@ export default function OrdersPage() {
     queryKey: ['menuPreviewOrder', orderEmployeeId],
     queryFn: () => fetchApi(`/orders/menu-preview?employeeId=${orderEmployeeId}`),
     enabled: !!orderEmployeeId && isOrderModalOpen,
+    staleTime: 5 * 60 * 1000,
+    gcTime: 10 * 60 * 1000,
   });
 
   const createOrderMutation = useMutation({
