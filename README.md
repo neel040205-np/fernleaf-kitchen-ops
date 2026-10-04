@@ -82,7 +82,10 @@ Use these exact credentials to test server-enforced role access and workflows on
 
 ### 1. Monorepo System Architecture
 
-The project is structured as an enterprise monorepo containing a **NestJS REST API backend** (`apps/api`) and a **Next.js 14 App Router frontend** (`apps/web`):
+![Monorepo System Architecture](./docs/monorepo-architecture.jpg)
+
+<details>
+<summary>Click to view Mermaid code definition</summary>
 
 ```mermaid
 graph TD
@@ -93,8 +96,14 @@ graph TD
     API --> Prisma["Prisma ORM Layer"]
     Prisma --> DB[("PostgreSQL Database<br/>Supabase Storage")]
 ```
+</details>
 
 ### 2. Entity Relationship Diagram (ERD)
+
+![Entity Relationship Diagram](./docs/erd-diagram.jpg)
+
+<details>
+<summary>Click to view Mermaid code definition</summary>
 
 ```mermaid
 erDiagram
@@ -117,10 +126,16 @@ erDiagram
     DELIVERY_PARTNER ||--o{ DELIVERY_DROP : delivers
     INVOICE ||--o{ ORDER : includes
 ```
+</details>
 
 ### 3. End-to-End Operational Workflow Diagram
 
 This flowchart illustrates the complete operational lifecycle of Fernleaf Kitchen Ops from initial admin setup to final corporate invoicing:
+
+![End-to-End Operational Workflow Diagram](./docs/workflow-diagram.jpg)
+
+<details>
+<summary>Click to view Mermaid code definition</summary>
 
 ```mermaid
 graph TD
@@ -137,6 +152,7 @@ graph TD
     Step4 --> Step5
     Step5 --> Step6
 ```
+</details>
 
 ---
 
