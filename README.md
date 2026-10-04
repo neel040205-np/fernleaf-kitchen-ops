@@ -86,20 +86,12 @@ The project is structured as an enterprise monorepo containing a **NestJS REST A
 
 ```mermaid
 graph TD
-    Client["Frontend UI (Next.js 14 App Router)"]
-    API["Backend REST API (NestJS Monorepo)"]
-    AuthGuard["Server RBAC (JWT + RolesGuard)"]
-    PricingEngine["Derived Price Tier Engine"]
-    CutoffEngine["Cut-off & Calendar Engine"]
-    PrismaORM["Prisma ORM Layer"]
-    SupabaseDB[(PostgreSQL Database)]
-
-    Client -->|HTTP REST + Bearer JWT| API
-    API --> AuthGuard
-    API --> PricingEngine
-    API --> CutoffEngine
-    API --> PrismaORM
-    PrismaORM --> SupabaseDB
+    Client["Next.js 14 Web Panel<br/>Frontend Admin UI"] -->|HTTP REST + Bearer JWT| API["NestJS REST API<br/>Monorepo Server"]
+    API --> Auth["Server RBAC Guards<br/>RolesGuard + JWT"]
+    API --> Pricing["Derived Price Tier Engine<br/>5-Cent Ceiling Rounding"]
+    API --> Cutoff["Kitchen Cut-off Engine<br/>Working Day Calendar"]
+    API --> Prisma["Prisma ORM Layer"]
+    Prisma --> DB[("PostgreSQL Database<br/>Supabase Storage")]
 ```
 
 ### 2. Entity Relationship Diagram (ERD)
@@ -132,50 +124,18 @@ This flowchart illustrates the complete operational lifecycle of Fernleaf Kitche
 
 ```mermaid
 graph TD
-    subgraph Step1["1. Admin Platform Setup"]
-        A1["Configure Dishes, Options & Stations"]
-        A2["Set Derived Price Tiers (5-Cent Ceiling)"]
-        A3["Onboard Companies & Import Employees"]
-        A1 --> A2 --> A3
-    end
+    Step1["1. ADMIN PLATFORM SETUP<br/>Dishes, Reusable Options, Derived Price Tiers & Company Onboarding"]
+    Step2["2. ORDER CREATION & MENU RULES<br/>Employee Menu Resolution, Option Combinations & 2:30h Lead Check"]
+    Step3["3. CUT-OFF PROCESSING ENGINE<br/>Kitchen Working Day Calculation, Auto-Cancel Drafts & Order Locking"]
+    Step4["4. KITCHEN PREPARATION<br/>Confirmed Orders Split into Prep Units & Station Routing (STARTED -> DONE)"]
+    Step5["5. DISPATCH & DROP GROUPING<br/>Group Orders by Company + Address + Time & Assign Delivery Partner"]
+    Step6["6. DRIVER & CORPORATE BILLING<br/>Mobile Delivery Completion with Note + Photo Proof & Invoicing"]
 
-    subgraph Step2["2. Order Creation & Menu Rules"]
-        B1["Employee Menu Resolved (Tiers & Hiding)"]
-        B2["Build Combination Options (Paneer, Rice)"]
-        B3["Validate 2:30h Lead Window & Place Order"]
-        B1 --> B2 --> B3
-    end
-
-    subgraph Step3["3. Cut-off Processing Engine"]
-        C1["Kitchen Working Days Count Trigger"]
-        C2["Draft Orders Auto-CANCELLED"]
-        C3["Placed Orders CONFIRMED & Locked"]
-        C1 --> C2
-        C1 --> C3
-    end
-
-    subgraph Step4["4. Kitchen Station Preparation"]
-        D1["Confirmed Orders Split into Prep Units"]
-        D2["Route Units to Stations (Cold/Hot/Bakery)"]
-        D3["Kitchen Lead Marks Units STARTED -> DONE"]
-        D1 --> D2 --> D3
-    end
-
-    subgraph Step5["5. Dispatch & Drop Grouping"]
-        E1["Group Orders by Company + Address + Time"]
-        E2["Assign Delivery Partner / Driver"]
-        E3["Status: DISPATCH_READY -> OUT_FOR_DELIVERY"]
-        E1 --> E2 --> E3
-    end
-
-    subgraph Step6["6. Mobile Driver & Corporate Billing"]
-        F1["Driver Views Today/Upcoming Drops"]
-        F2["Mark DELIVERED with Note & Photo Proof"]
-        F3["Corporate Invoicing & Invoice Payment"]
-        F1 --> F2 --> F3
-    end
-
-    Step1 --> Step2 --> Step3 --> Step4 --> Step5 --> Step6
+    Step1 --> Step2
+    Step2 --> Step3
+    Step3 --> Step4
+    Step4 --> Step5
+    Step5 --> Step6
 ```
 
 ---
