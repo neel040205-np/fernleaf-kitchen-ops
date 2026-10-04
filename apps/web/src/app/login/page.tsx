@@ -4,14 +4,7 @@ import React, { useState } from 'react';
 import { useRouter } from 'next/navigation';
 import { useAuth } from '../../lib/auth-context';
 import { fetchApi } from '../../lib/api';
-import { ChefHat, ShieldCheck, Truck, UserCheck, AlertCircle } from 'lucide-react';
-
-const TEST_ACCOUNTS = [
-  { role: 'Admin', email: 'admin@test.com', password: 'Test@1234', icon: ShieldCheck, color: 'bg-indigo-50 border-indigo-200 text-indigo-700' },
-  { role: 'Kitchen', email: 'kitchen@test.com', password: 'Test@1234', icon: ChefHat, color: 'bg-amber-50 border-amber-200 text-amber-700' },
-  { role: 'Dispatch', email: 'dispatch@test.com', password: 'Test@1234', icon: Truck, color: 'bg-sky-50 border-sky-200 text-sky-700' },
-  { role: 'Driver', email: 'driver@test.com', password: 'Test@1234', icon: UserCheck, color: 'bg-emerald-50 border-emerald-200 text-emerald-700' },
-];
+import { AlertCircle } from 'lucide-react';
 
 export default function LoginPage() {
   const router = useRouter();
@@ -30,27 +23,6 @@ export default function LoginPage() {
       const data = await fetchApi<{ accessToken: string; user: any }>('/auth/login', {
         method: 'POST',
         body: JSON.stringify({ email, password }),
-      });
-
-      login(data.accessToken, data.user);
-      router.push('/dashboard');
-    } catch (err: any) {
-      setError(err.message || 'Login failed');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleQuickLogin = async (acc: typeof TEST_ACCOUNTS[0]) => {
-    setEmail(acc.email);
-    setPassword(acc.password);
-    setError(null);
-    setLoading(true);
-
-    try {
-      const data = await fetchApi<{ accessToken: string; user: any }>('/auth/login', {
-        method: 'POST',
-        body: JSON.stringify({ email: acc.email, password: acc.password }),
       });
 
       login(data.accessToken, data.user);
@@ -123,31 +95,6 @@ export default function LoginPage() {
             {loading ? 'Signing in...' : 'Sign In'}
           </button>
         </form>
-
-        <div className="border-t border-slate-200 pt-5 space-y-3">
-          <p className="text-xs font-semibold text-slate-500 text-center uppercase tracking-wider">
-            One-Click Test Account Sign In
-          </p>
-          <div className="grid grid-cols-2 gap-2">
-            {TEST_ACCOUNTS.map((acc) => {
-              const Icon = acc.icon;
-              return (
-                <button
-                  key={acc.email}
-                  type="button"
-                  onClick={() => handleQuickLogin(acc)}
-                  className={`p-2.5 rounded-lg border text-left flex items-center gap-2 hover:opacity-90 transition ${acc.color}`}
-                >
-                  <Icon className="w-4 h-4 shrink-0" />
-                  <div>
-                    <p className="text-xs font-bold leading-none">{acc.role}</p>
-                    <p className="text-[10px] opacity-75 truncate">{acc.email}</p>
-                  </div>
-                </button>
-              );
-            })}
-          </div>
-        </div>
       </div>
     </div>
   );
