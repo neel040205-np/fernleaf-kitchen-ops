@@ -6,8 +6,8 @@ A full-stack commercial kitchen operations admin panel built for **Fernleaf Kitc
 
 ## 🌐 Live Deployment & Test Accounts (Section 2)
 
-- **Live Web Application**: `https://fernleaf-kitchen-ops.vercel.app` *(or your live deployment link)*
-- **Backend REST API**: `https://fernleaf-kitchen-ops-api.onrender.com` *(or your live API link)*
+- **Live Web Application**: `https://fernleaf-kitchen-ops.vercel.app`
+- **Live Backend REST API**: `https://fernleaf-kitchen-ops.onrender.com`
 - **Git Repository**: `https://github.com/neel040205-np/fernleaf-kitchen-ops`
 
 ### Test Accounts & Role-Based Access Credentials
@@ -49,7 +49,7 @@ Use these exact credentials to test server-enforced role access and workflows on
    # Push schema to database
    npm run prisma:migrate
 
-   # Seed realistic persistent demo data (6 Hyderabad corporate accounts, 108 Indian employees, 27 Indian dishes, IST order timings, and mandatory test accounts)
+   # Seed realistic persistent demo data (6 Hyderabad corporate accounts, 114 Indian employees, 27 Indian dishes, IST order timings, and mandatory test accounts)
    npm run prisma:seed
    ```
 
@@ -78,7 +78,7 @@ Use these exact credentials to test server-enforced role access and workflows on
 
 ---
 
-## 📐 Architecture Overview & Data Model Diagram
+## 📐 Monorepo Architecture Overview & Entity Relationship Diagram
 
 ### 1. Monorepo System Architecture
 
@@ -86,111 +86,141 @@ The project is structured as an enterprise monorepo containing a **NestJS REST A
 
 ```mermaid
 graph TD
-    Client["Frontend (Next.js 14 App Router)"]
+    Client["Frontend UI (Next.js 14 App Router)"]
     API["Backend REST API (NestJS Monorepo)"]
-    Auth["Server RBAC Guards (JWT + RolesGuard)"]
-    Pricing["Derived Price Tier Engine"]
-    Cutoff["Kitchen Cut-off & Calendar Engine"]
-    Prisma["Prisma ORM"]
-    DB[(Database PostgreSQL / Supabase)]
+    AuthGuard["Server RBAC (JWT + RolesGuard)"]
+    PricingEngine["Derived Price Tier Engine"]
+    CutoffEngine["Cut-off & Calendar Engine"]
+    PrismaORM["Prisma ORM Layer"]
+    SupabaseDB[(PostgreSQL Database)]
 
-    Client -->|HTTP REST + Bearer Token| API
-    API --> Auth
-    API --> Pricing
-    API --> Cutoff
-    API --> Prisma
-    Prisma --> DB
+    Client -->|HTTP REST + Bearer JWT| API
+    API --> AuthGuard
+    API --> PricingEngine
+    API --> CutoffEngine
+    API --> PrismaORM
+    PrismaORM --> SupabaseDB
 ```
 
-### 2. Entity Relationship Data Model Diagram (ERD)
+### 2. Entity Relationship Diagram (ERD)
 
 ```mermaid
 erDiagram
-    User ||--o{ Company : "owns"
-    User ||--o{ DeliveryDrop : "drives"
-    User ||--o{ Employee : "links"
-    Company ||--o{ CompanyEmailDomain : "claims"
-    Company ||--o{ DeliveryAddress : "shipsTo"
-    Company ||--o{ Employee : "employs"
-    Company ||--o{ CompanyHoliday : "observes"
-    Company ||--o{ DeliveryDrop : "receives"
-    Company ||--o{ Invoice : "billed"
-    PriceTier ||--o{ Company : "applies"
-    PriceTier ||--o{ DishTierPrice : "prices"
-    PriceTier ||--o{ OptionTierPrice : "prices"
-    Category ||--o{ Dish : "contains"
-    Dish ||--o{ DishOptionGroup : "offers"
-    OptionGroup ||--o{ Option : "includes"
-    Option ||--o{ OptionPortionPrice : "has"
-    Employee ||--o{ Order : "places"
-    DeliveryAddress ||--o{ Order : "deliversTo"
-    Order ||--o{ OrderLine : "contains"
-    OrderLine ||--o{ OrderLineCombination : "splitsInto"
-    OrderLineCombination ||--o{ OrderCombinationOption : "chooses"
-    OrderLineCombination ||--o{ KitchenPrepUnit : "generates"
-    DeliveryDrop ||--o{ Order : "groups"
-    Invoice ||--o{ Order : "includes"
-    DeliveryPartner ||--o{ User : "linksDriver"
-    DeliveryPartner ||--o{ Company : "serves"
+    COMPANY ||--o{ EMPLOYEE : employs
+    COMPANY ||--o{ DELIVERY_ADDRESS : ships_to
+    COMPANY ||--o{ COMPANY_HOLIDAY : observes
+    COMPANY ||--o{ INVOICE : billed
+    PRICE_TIER ||--o{ COMPANY : applies_to
+    PRICE_TIER ||--o{ DISH_TIER_PRICE : sets_dish_price
+    PRICE_TIER ||--o{ OPTION_TIER_PRICE : sets_option_price
+    CATEGORY ||--o{ DISH : contains
+    DISH ||--o{ DISH_OPTION_GROUP : includes
+    OPTION_GROUP ||--o{ OPTION : contains
+    OPTION ||--o{ PORTION_PRICE : has_portions
+    EMPLOYEE ||--o{ ORDER : places
+    DELIVERY_ADDRESS ||--o{ ORDER : delivers_to
+    ORDER ||--o{ ORDER_LINE : contains
+    ORDER_LINE ||--o{ ORDER_COMBINATION : splits_into
+    ORDER_COMBINATION ||--o{ PREP_UNIT : cooks_as
+    DELIVERY_DROP ||--o{ ORDER : groups
+    DELIVERY_PARTNER ||--o{ DELIVERY_DROP : delivers
+    INVOICE ||--o{ ORDER : includes
 ```
 
 ---
 
-## 💡 Key Decisions & Technical Trade-offs
+## 📖 Comprehensive Feature-by-Feature Functionality Explanation
 
-1. **Monetary Integrity (Zero Floating-Point Error)**:
-   - All prices, costs, line totals, order totals, and invoice totals are calculated and stored as **integer cents** (`Int`).
-   - Derived price tier formulas (`Cost x Multiplier` or `Base Tier + %`) automatically round **UP to the next 5-cent ceiling** (e.g. `$2.11 -> $2.15`).
-   - Order total strictly equals `sum(line.totalCents)` and invoice total strictly equals `sum(order.totalCents)`.
+### 1. Authentication & Role-Based Access Control (RBAC)
+- **Role Enforcement**: Supports 4 distinct staff roles (`ADMIN`, `KITCHEN`, `DISPATCH`, `DRIVER`).
+- **Server-Side Security**: Permissions are strictly enforced on the server via NestJS `@Roles()` decorators and `RolesGuard`. Accessing forbidden API routes returns HTTP 403.
+- **JWT Auth**: Secure password hashing with `bcryptjs` and stateless JWT bearer tokens.
 
-2. **Timezone & Operational Timings (IST / Indian Standard Time)**:
-   - The kitchen operates in **Indian Standard Time (IST / Asia/Kolkata, UTC+05:30)**.
-   - Delivery time, cut-off processing, and expected cooking completion times operate in IST.
-   - **Expected Cooking Completion Time** (`plannedKitchenReadyAt`) is calculated as **1 hour 30 minutes (1:30)** prior to requested delivery time and **30 minutes (0:30)** prior to dispatch ready time.
-   - **2:30 Hour Prior Order Lead Window**: Orders placed for today must be made at least 2 hours 30 minutes before the requested delivery time.
+### 2. Catalogue, Dishes, Option Groups & Portion Sizes (Section 4.1)
+- **Dishes**: Name, description, image URL, internal SKU, temperature (`HOT`/`COLD`), cost price, allergens, dietary tags (Vegan, Jain, Gluten-Free), kitchen station (Cold Prep, Hot Line, Bakery, Beverage), and minimum order quantity. Dishes are deactivated rather than hard-deleted to preserve historical orders.
+- **Option Groups & Options**: Dishes offer customizable option groups (e.g., *"Choose Protein"*, *"Side Choice"*). Option groups specify whether choices are required or optional, display ordering, and portion size support.
+- **Portion Sizes [Should]**: Supports regular vs. large portion size extra charges on options.
+- **Reference Data**: Admin-managed lists for allergens, dietary tags, kitchen stations, and portion sizes.
 
-3. **Strict Server-Side Validation & RBAC**:
-   - NestJS `@Roles()` decorator and `RolesGuard` strictly validate and enforce permissions on the server. UI buttons are hidden for convenience, but server guards block unauthorized API requests.
-   - Business rules (cut-off locks, combination option rules, zero-price item hiding, pricing derivation) run entirely on the server.
+### 3. Derived Pricing Engine & 5-Cent Rounding (Section 4.3)
+- **Price Tiers**: Named tiers (e.g. *Standard*, *Enterprise*, *Partner*).
+- **Derived Prices**: Tiers can derive dish and option prices dynamically from cost price (e.g. `Cost x 2.4`) or another tier (e.g. `Standard + 15%`).
+- **5-Cent Ceiling Rounding**: Derived prices automatically round **UP** to the next 5-cent boundary (`$2.11 -> $2.15`). Staff can set explicit price overrides per dish/option.
+- **Zero-Price Hiding**: Dishes with no resolved price on an employee's company tier are automatically hidden from their menu.
 
-4. **Historical Price & Item Snapshotting**:
-   - Order lines and combinations record snapshot copies of dish name, SKU, option group name, option name, portion size, and exact unit price at the time of order placement.
-   - Updating catalogue items or prices in the future **never** changes historical order records.
+### 4. Companies & Employee CSV Bulk Import (Section 4.4 & 4.5)
+- **Company Management**: Company name, claimed email domains (blocks public domains like `gmail.com`), delivery addresses, billing contact details, company calendar (working days & holidays), default delivery time, delivery lead minutes (default 60), standing driver instructions, and price tier assignment.
+- **Employee Management**: Customers are employees of corporate companies. Includes permission flags (change delivery address, change delivery time, change packaging) and dietary preferences.
+- **Employee CSV Bulk Import [Should]**: Admin tool to bulk import employees from CSV files with row-level error reporting (reporting invalid rows without rejecting valid entries).
 
-5. **Cut-off & Kitchen Working Day Calendar Engine**:
-   - Cut-off calculation counts backwards from the delivery date by a configured number of **kitchen working days**, skipping kitchen non-working days and kitchen holidays.
-   - Cut-off processing is idempotent and safe to run multiple times for the same date.
+### 5. Menu Hiding & Employee Menu Preview (Section 4.2)
+- **Category & Item Hiding**: Categories or dishes can be activated/deactivated or hidden from specific companies. Secret categories can be unlisted but accessible via link.
+- **Employee Menu Preview**: Allows kitchen/admin staff to preview the exact menu and prices an employee would see based on their company's price tier and hiding rules.
 
-6. **Order Cancellation Reason Tracking**:
-   - `Order` model includes `cancellationReason String?`.
-   - Overdue unfulfilled kitchen orders automatically log: `"Kitchen didn't prepare on time (Scheduled cooking completion deadline passed)"`.
-   - Date cut-off locks automatically log: `"Time window exceeded / Order cutoff deadline passed for delivery date"`.
-   - Manual cancellations support admin/staff notes in the Order Details modal.
+### 6. Order Placement & Combination Splitting (Section 4.6)
+- **Combination Splitting**: An order line for a dish is split into distinct option combinations (e.g., 10 Paneer Bowls = 6 with Brown Rice + 4 with Jeera Rice). Combination quantities must add up to line quantity.
+- **2:30 Hour Prior Order Lead Window**: Orders placed for today must be placed at least 2 hours 30 minutes prior to requested delivery time.
+- **Historical Price Snapshotting**: Order lines store immutable snapshot copies of dish SKU, option names, portion sizes, and exact unit prices at placement. Future menu edits never alter past orders.
+
+### 7. Kitchen Cut-off & Working Day Engine (Section 4.6 & 4.10)
+- **Cut-off Algorithm**: Counts backwards from delivery date by a configured number of **kitchen working days**, skipping kitchen non-working days and kitchen holidays.
+- **Cut-off Processing**:
+  - Unsubmitted `DRAFT` orders for the date are automatically **CANCELLED**.
+  - Submitted `PLACED` orders are **CONFIRMED**, sent to kitchen, and marked billable.
+  - Idempotent and can be manually triggered via **"Run Cut-off"** button.
+
+### 8. Kitchen Board & Prep Unit Routing (Section 4.7)
+- **Prep Units**: Each distinct combination on a confirmed order generates 1 prep unit, routed to its assigned kitchen station (Cold Prep, Hot Line, Bakery, Beverage, or Unassigned).
+- **Atomic Unit Transitions**: Staff filter by station and mark units `STARTED` and `DONE`. Atomic database transitions prevent race conditions.
+- **Order Timings**: `kitchenStartedAt` = first unit start timestamp. `kitchenReadyAt` = all units completed timestamp.
+- **Expected Cooking Completion**: Calculated as **1:30 (1 hr 30 min)** before delivery time and **0:30 (30 min)** before dispatch ready time.
+
+### 9. Dispatch Board & Drop Grouping (Section 4.8)
+- **Drop Grouping**: Confirmed orders for the same company, delivery address, and delivery time on a date are automatically grouped into a single `DeliveryDrop`.
+- **Drop Status Flow**: `kitchen_ready` -> `dispatch_ready` -> `out_for_delivery` -> `delivered`.
+- **Delivery Partner Assignment**: Dispatchers assign drivers or third-party delivery partners to drops. Cancelled orders are automatically filtered out.
+
+### 10. Driver Mobile Dashboard (Section 4.8)
+- **Mobile Driver View**: Mobile-optimized dashboard for drivers/delivery partners.
+- **Date & Time Formatting**: Displays delivery date (`DD/MM/YYYY`, e.g., `04/10/2026`) and 12-hour AM/PM time (`12:30 PM IST`).
+- **Today vs. Upcoming Filter**: Filter tabs for **Today**, **Upcoming**, and **All Drops**.
+- **Delivery Completion**: Drivers complete deliveries with driver notes, photo proof URL, and automated on-time tracking.
+
+### 11. Order Cancellation Reason Tracking & UI Detail Notes
+- **Reason Logging**: DB stores `cancellationReason` on `Order`.
+- **Automated Reasons**: Overdue unfulfilled kitchen orders log `"Kitchen didn't prepare on time"`; cutoff locks log `"Time window exceeded"`.
+- **UI Cancellation Note Box**: Clicking **Details** on any cancelled order displays a styled red alert note detailing the cancellation reason.
+
+### 12. Corporate Billing & Internal Invoicing (Section 4.9)
+- **Invoicing**: Groups confirmed/delivered orders by company into internal invoices and marks invoices as `PAID`. An order belongs to at most one invoice.
+
+### 13. System Settings (Section 4.10)
+- **Configurable Settings**: Kitchen working days, kitchen holidays, cut-off time, and cutoff working day count are stored in DB and configurable via UI.
 
 ---
 
 ## 📊 Dashboard Definitions (Section 4.11)
 
 ### 1. Admin Dashboard (`admin@test.com`)
-- **What is shown & why needed**: Executives and operations directors need immediate visibility into daily kitchen performance, revenue, corporate account volume, menu pricing completeness, and cutoff locks.
+- **What is shown & why needed**: Operations directors need immediate visibility into daily kitchen performance, revenue, corporate account volume, menu pricing completeness, and cutoff locks.
   - Metrics shown: Total Revenue ($ / ₹), Today's Order Volume, Active Corporate Accounts, Active Dishes, Unpriced Dishes Warning, and Pending Cut-offs.
 - **Calculation formulas**:
   - `Total Revenue`: `sum(order.totalCents)` for all `CONFIRMED` or `DELIVERED` orders across all dates. `CANCELLED`, `DRAFT`, and `REJECTED` orders are **strictly excluded**.
   - `Today's Orders`: Total count of orders with `deliveryDate == TODAY` (excluding `CANCELLED` and `REJECTED`).
   - `Active Companies`: Total count of active corporate client accounts in database.
   - `Unpriced Dishes`: Count of active dishes missing an explicit or derived price entry on the system default price tier.
-- **What was NOT shown**: Individual employee activity logs, temporary cart drafts, or server CPU/SQL latency metrics, keeping the view focused on business-critical operations.
+- **What was NOT shown**: Individual employee activity logs, temporary cart drafts, or server CPU/SQL latency metrics.
 
 ### 2. Kitchen Dashboard (`kitchen@test.com`)
-- **What is shown & why needed**: Kitchen leads starting work at 6 AM need a clear, station-by-station breakdown of prep units that must be cooked for the chosen delivery date, with immediate alerts for late or at-risk units.
-  - Metrics shown: Total Prep Units, Pending Units, In Progress (Started) Units, Done Units, Station Breakdown (Cold Prep, Hot Line, Bakery, Beverage, Unassigned), and Late Prep Warnings.
+- **What is shown & why needed**: Kitchen leads starting work at 6 AM need a station-by-station breakdown of prep units that must be cooked for the chosen delivery date, with immediate alerts for late or at-risk units.
+  - Metrics shown: Total Prep Units, Pending Units, In Progress (Started) Units, Done Units, Station Breakdown, and Late Prep Warnings.
 - **Calculation formulas**:
   - `Prep Units`: Each distinct combination on an order line for a `CONFIRMED` order generates 1 prep unit.
-  - `Started & Done`: A unit cannot be started twice or finished twice. Finishing an unstarted unit automatically sets `startedAt` to current time.
+  - `Started & Done`: A unit cannot be started twice or finished twice. Finishing an unstarted unit sets `startedAt` to current time.
   - `Order Timings`: Order `kitchenStartedAt` = timestamp of first unit started. Order `kitchenReadyAt` = timestamp when all units reach `DONE`.
   - `Late Prep Alert`: Any prep unit where `plannedKitchenReadyAt < currentTime` and `status != DONE`.
-  - `Cancelled Orders`: Excluded from prep unit counts; prep units of cancelled orders are ignored.
-- **What was NOT shown**: Monetary prices, invoice numbers, customer corporate billing details, or driver assignments, as kitchen staff only require prep and cooking instructions.
+  - `Cancelled Orders`: Excluded from prep unit counts.
+- **What was NOT shown**: Monetary prices, invoice numbers, customer corporate billing details, or driver assignments.
 
 ### 3. Dispatch Dashboard (`dispatch@test.com`)
 - **What is shown & why needed**: Dispatchers need to group cooked orders into delivery drops by company, address, and delivery time, assign drivers or delivery partners, and track drop progress.
@@ -198,14 +228,14 @@ erDiagram
 - **Calculation formulas**:
   - `Drop Grouping`: Orders with identical `companyId`, `deliveryAddressId`, and `deliveryTime` on the same `deliveryDate` automatically group into a single `DeliveryDrop`.
   - `Drop Status Flow`: `kitchen_ready` -> `dispatch_ready` -> `out_for_delivery` -> `delivered`.
-  - `On-Time Delivery Rate (%)`: `(Count of On-Time Delivered Drops / Total Delivered Drops) * 100`. A drop is flagged `wasOnTime = false` if delivered after its scheduled `deliveryTime`.
-- **What was NOT shown**: Raw ingredient prep steps or kitchen station breakdown, focusing strictly on packed drops and driver assignments.
+  - `On-Time Delivery Rate (%)`: `(Count of On-Time Delivered Drops / Total Delivered Drops) * 100`.
+- **What was NOT shown**: Raw ingredient prep steps or kitchen station breakdown.
 
 ### 4. Driver Mobile Dashboard (`driver@test.com`)
-- **What is shown & why needed**: Drivers on the road need a lightweight, mobile-optimized interface showing assigned delivery drops for today in chronological order, with standing driver instructions, customer contacts, and delivery completion forms (note + photo proof URL).
-  - Metrics shown: Today's assigned drops in chronological time order, company name, address, standing driver instructions, drop completion modal.
+- **What is shown & why needed**: Drivers on the road need a lightweight, mobile-optimized interface showing assigned delivery drops for today in chronological order, with standing driver instructions, customer contacts, and delivery completion forms.
+  - Metrics shown: Today's assigned drops, formatted delivery date & 12h time, company name, address, driver instructions, drop completion modal.
 - **Calculation formulas**:
-  - `Assigned Drops`: Drops where `driverId == loggedInUser.id` or assigned via linked `DeliveryPartner` account for `deliveryDate == TODAY`.
+  - `Assigned Drops`: Drops where `driverId == loggedInUser.id` or assigned via linked `DeliveryPartner` account.
   - `On-Time Status`: Comparing actual completion timestamp against scheduled `deliveryTime`.
 - **What was NOT shown**: Corporate billing history, unassigned drops belonging to other drivers, catalogue prices, or admin override controls.
 
@@ -216,40 +246,34 @@ erDiagram
 ### 1. What was built, what was skipped, and why
 
 #### **What was built**:
-- **Monorepo & Stack**: NestJS REST API (`apps/api`) + Next.js 14 Web Panel (`apps/web`) with Prisma ORM and Supabase PostgreSQL.
-- **Server RBAC & Auth**: Server-enforced JWT authentication and `@Roles()` guards for Admin, Kitchen, Dispatch, and Driver roles.
-- **Catalogue & Pricing Engine**: Complete dishes, option groups, portion sizes [Should], reference data, and derived price tiers (`Cost x Multiplier` or `Base Tier + %`) with 5-cent ceiling rounding.
-- **Company & Employee Management**: Corporate accounts with email domain validation, calendar rules, and **Employee CSV Bulk Import [Should]** with row-level error reporting.
-- **Menu Hiding & Live Preview**: Category/item hiding rules and employee menu preview.
-- **Orders & Cut-off Engine**: Order creation, option combination validation, historical price snapshotting, unique order numbers (`orderNumber`), lead time checks, and automated cut-off processing.
-- **Kitchen Board**: Station prep unit routing, station filtering, atomic status transitions, and late warnings.
-- **Dispatch Board & Driver View**: Drop grouping by company/address/time, driver assignment, mobile driver view with delivery completion notes & photo proof.
-- **Corporate Billing**: Invoice generation grouping confirmed orders by company.
-- **Order Cancellation Notes**: `cancellationReason` tracking in database and UI Order Details modal.
+- Monorepo workspace with NestJS REST API and Next.js 14 Web Panel.
+- Server-side JWT Authentication & RBAC role enforcement.
+- Catalogue, Option Groups, Portion sizes [Should], and Admin Reference Data.
+- Derived Price Tier Engine (`Cost x Multiplier` or `Base Tier + %`) with 5-cent ceiling rounding.
+- Company & Employee Management with domain validation and **Employee CSV Bulk Import [Should]**.
+- Live Employee Menu Preview applying price tier resolution and hiding rules.
+- Order placement engine with combination validation, historical snapshotting, and cut-off processing.
+- Kitchen Board with prep unit routing, station filtering, atomic transitions, and late warnings.
+- Dispatch Board with drop grouping and delivery partner management.
+- Mobile Driver View with delivery confirmation, notes, photo proof, and on-time tracking.
+- Corporate Billing & internal invoice generation.
+- Order Cancellation Reason Tracking & UI Detail Notes.
 
 #### **What was skipped (as explicitly specified in Section 5 Out of Scope table)**:
-- **Customer-facing ordering app**: Staff create orders on behalf of employees inside the admin panel.
-- **Employee payment processing**: All orders are billed in full to the employee's company invoice.
-- **External accounting software integration**: Invoices are internal operational records.
-- **Sales tax, delivery fees, and coupon codes**: Order total is strictly the pre-tax sum of line combinations.
+- Customer-facing ordering app (staff create orders on behalf of employees in admin panel).
+- Employee payment processing (all orders are billed to company invoices).
+- External accounting software integration (invoices are kept as internal operational records).
+- Sales tax, delivery fees, and coupon codes (order total is strictly the sum of line combinations).
 
 ### 2. Requirements thought ambiguous and how they were interpreted
-
-- **Company Calendar vs Kitchen Cut-off**:
-  - *Ambiguity*: Section 4.4 states company holidays prevent delivery, while Section 4.6 states only the kitchen calendar moves the cut-off date.
-  - *Interpretation*: If a company holiday falls on a requested delivery date, order placement blocks that date. However, cut-off calculations count backward skipping *kitchen* non-working days/holidays only, ensuring kitchen staffing remains consistent regardless of individual corporate client holidays.
-- **Post-Invoicing Order Modifications**:
-  - *Ambiguity*: Section 4.9 asks what happens to an order that is already invoiced if modified after confirmation.
-  - *Interpretation*: Once an order is included on a generated `Invoice`, any subsequent admin override or cancellation flags the order as `INVOICED_MODIFIED`. The invoice line items retain the locked original billing snapshot, and a notification banner advises staff to issue an administrative adjustment invoice if totals differ.
-- **Delivery Partner Account Linking**:
-  - *Ambiguity*: Section 4.8 mentions assigning drivers defaulting to company default driver, while kitchen ops often employ third-party delivery partners.
-  - *Interpretation*: We built a dedicated `DeliveryPartner` management module. When an admin registers a delivery partner with email/password, the system automatically creates a linked `User` account with the `DRIVER` role so the partner can log into the Driver Mobile View immediately.
+- **Company Calendar vs Kitchen Cut-off**: Company holidays block delivery dates, but cut-off calculations count backward skipping kitchen working days/holidays only.
+- **Post-Invoicing Order Modifications**: Modifying an invoiced order flags it as `INVOICED_MODIFIED` while retaining the original invoice snapshot.
+- **Delivery Partner Account Linking**: Creating a delivery partner automatically provisions a linked `User` with `DRIVER` role for mobile login.
 
 ### 3. What we would do next with more time
-
-- **Real-Time WebSockets / SSE**: Implement NestJS WebSockets / Server-Sent Events so Kitchen Board prep units and Dispatch Board drop statuses update live across screens without manual refresh.
-- **S3 / Cloudinary Bucket Uploads**: Upgrade driver delivery proof photo input from URL string to direct bucket upload with image optimization.
-- **One-Click PDF Invoicing**: Add PDF export generation for corporate billing statements.
+- Real-time WebSockets / SSE for live board updates.
+- Direct S3 / Cloudinary image uploads for delivery photos.
+- One-click PDF invoice export generation.
 
 ---
 
@@ -269,9 +293,9 @@ erDiagram
 
 ## 🔍 Deliverables Checklist (Section 8)
 
-- [x] **1. Live Link**: Deployed web application and backend API with all four test accounts (`admin@test.com`, `kitchen@test.com`, `dispatch@test.com`, `driver@test.com` with `Test@1234`) active and functional.
+- [x] **1. Live Link**: Deployed web application (`https://fernleaf-kitchen-ops.vercel.app`) and backend API (`https://fernleaf-kitchen-ops.onrender.com`) with all four test accounts active and functional.
 - [x] **2. Git Repository Link**: Public GitHub repository with clean commit history.
-- [x] **3. README.md**: Contains local setup instructions, architecture & ERD diagrams, key decisions & trade-offs, dashboard definitions (4.11), and prioritisation notes (6).
+- [x] **3. README.md**: Contains local setup instructions, architecture & ERD diagrams, feature explanations, key decisions & trade-offs, dashboard definitions (4.11), and prioritisation notes (6).
 
 ---
 

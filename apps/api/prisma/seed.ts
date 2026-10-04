@@ -858,61 +858,20 @@ async function main() {
   let orderNum = 1001;
   const sampleDishKeys = Object.keys(createdDishesMap);
 
-  // Separate employees by price tier for clean distribution
-  const stdCompanyIds = new Set([createdCompanies[0].id, createdCompanies[3].id]); // TCS, TechM
-  const entCompanyIds = new Set([createdCompanies[1].id, createdCompanies[4].id]); // Infosys, Microsoft
-  const prtCompanyIds = new Set([createdCompanies[2].id, createdCompanies[5].id]); // Wipro, Amazon
-
-  const stdEmployees = seededEmployees.filter((e) => stdCompanyIds.has(e.companyId));
-  const entEmployees = seededEmployees.filter((e) => entCompanyIds.has(e.companyId));
-  const prtEmployees = seededEmployees.filter((e) => prtCompanyIds.has(e.companyId));
-
   for (let dayOffset = -3; dayOffset <= 5; dayOffset++) {
     const oDate = new Date(todayIST);
     oDate.setDate(todayIST.getDate() + dayOffset);
 
     const isPast = dayOffset < 0;
     const isToday = dayOffset === 0;
-    const isFuture = dayOffset > 0;
 
-    let empsForDay: typeof seededEmployees = [];
+    const emp1 = seededEmployees[Math.abs(dayOffset * 7) % seededEmployees.length];
+    const emp2 = seededEmployees[Math.abs(dayOffset * 11 + 3) % seededEmployees.length];
+    const emps = [emp1, emp2];
 
-    if (isPast) {
-      empsForDay = [
-        seededEmployees[Math.abs(dayOffset * 7) % seededEmployees.length],
-        seededEmployees[Math.abs(dayOffset * 11 + 3) % seededEmployees.length],
-      ];
-    } else if (isToday) {
-      empsForDay = [
-        seededEmployees[0], // TCS (Standard)
-        seededEmployees[18], // Infosys (Enterprise)
-      ];
-    } else {
-      // Upcoming dates: Oct 5, 6, 7, 8, 9 (2 orders per day, distributed across Enterprise, Standard, Partner)
-      if (dayOffset === 1) {
-        // Oct 5: Enterprise + Standard
-        empsForDay = [entEmployees[0], stdEmployees[0]];
-      } else if (dayOffset === 2) {
-        // Oct 6: Partner + Enterprise
-        empsForDay = [prtEmployees[0], entEmployees[1]];
-      } else if (dayOffset === 3) {
-        // Oct 7: Standard + Partner
-        empsForDay = [stdEmployees[1], prtEmployees[1]];
-      } else if (dayOffset === 4) {
-        // Oct 8: Enterprise + Standard
-        empsForDay = [entEmployees[2], stdEmployees[2]];
-      } else if (dayOffset === 5) {
-        // Oct 9: Partner + Enterprise
-        empsForDay = [prtEmployees[2], entEmployees[3]];
-      }
-    }
-
-    for (let i = 0; i < empsForDay.length; i++) {
-      const emp = empsForDay[i];
+    for (let i = 0; i < emps.length; i++) {
+      const emp = emps[i];
       if (!emp) continue;
-
-      const empCompany = createdCompanies.find((c) => c.id === emp.companyId)!;
-      const empAddr = empCompany.addresses[0];
 
       let status = OrderStatus.PLACED;
       let dropId: string | null = null;
@@ -922,22 +881,14 @@ async function main() {
       } else if (isToday) {
         status = i === 0 ? OrderStatus.CONFIRMED : OrderStatus.PLACED;
         dropId = emp.companyId === company1.id ? dropToday1.id : dropToday2.id;
-      } else if (isFuture) {
-        // Distribute statuses: alternating PLACED and CONFIRMED for upcoming days
-        status = i === 0 ? OrderStatus.CONFIRMED : OrderStatus.PLACED;
       }
 
       const oDateStr = oDate.toISOString().split('T')[0];
-      const deliveryTimeStr = empCompany.defaultDeliveryTime || (i === 0 ? '12:30' : '13:00');
+      const deliveryTimeStr = '12:30';
 
-      const [delH, delM] = deliveryTimeStr.split(':').map(Number);
-      const hhStr = String(isNaN(delH) ? 12 : delH).padStart(2, '0');
-      const mmStr = String(isNaN(delM) ? 0 : delM).padStart(2, '0');
-
-      const plannedDeliveryAt = new Date(`${oDateStr}T${hhStr}:${mmStr}:00.000+05:30`);
-      const leadMins = empCompany.deliveryLeadMinutes || 60;
-      const plannedDispatchReadyAt = new Date(plannedDeliveryAt.getTime() - leadMins * 60 * 1000);
-      const plannedKitchenReadyAt = new Date(plannedDeliveryAt.getTime() - 90 * 60 * 1000); // 1:30 before delivery
+      const plannedDeliveryAt = new Date(`${oDateStr}T12:30:00.000+05:30`);
+      const plannedDispatchReadyAt = new Date(plannedDeliveryAt.getTime() - 60 * 60 * 1000); // 11:30 AM IST
+      const plannedKitchenReadyAt = new Date(plannedDeliveryAt.getTime() - 90 * 60 * 1000);  // 11:00 AM IST
 
       const dishKey = sampleDishKeys[Math.abs(dayOffset * 5 + i * 3) % sampleDishKeys.length];
       const targetDish = createdDishesMap[dishKey];
@@ -946,12 +897,12 @@ async function main() {
         data: {
           orderNumber: orderNum++,
           employeeId: emp.id,
-          deliveryAddressId: empAddr.id,
+          deliveryAddressId: emp.companyId === company1.id ? addr1.id : addr2.id,
           deliveryDate: plannedDeliveryAt,
           deliveryTime: deliveryTimeStr,
-          packagingType: empCompany.defaultPackaging || 'Eco Box',
+          packagingType: 'Eco Box',
           status,
-          totalCents: targetDish.costPriceCents * 2,
+          totalCents: targetDish.costPriceCents * 2, // approximate total
           dropId,
           plannedDispatchReadyAt,
           plannedKitchenReadyAt,
@@ -981,14 +932,14 @@ async function main() {
         },
       });
 
-      if (isToday || isPast || status === OrderStatus.CONFIRMED) {
+      if (isToday || isPast) {
         await prisma.kitchenPrepUnit.create({
           data: {
             orderId: order.id,
             orderLineCombinationId: combo.id,
             stationName: targetDish.stationId ? 'Grill Station' : 'Wok & Stir-Fry Station',
-            status: isPast ? PrepUnitStatus.DONE : isToday ? PrepUnitStatus.STARTED : PrepUnitStatus.PENDING,
-            startedAt: isToday || isPast ? new Date(plannedKitchenReadyAt.getTime() - 30 * 60 * 1000) : null,
+            status: isPast ? PrepUnitStatus.DONE : PrepUnitStatus.STARTED,
+            startedAt: new Date(plannedKitchenReadyAt.getTime() - 30 * 60 * 1000),
             completedAt: isPast ? plannedKitchenReadyAt : null,
           },
         });
