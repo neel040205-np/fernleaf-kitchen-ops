@@ -1,4 +1,4 @@
-import { Controller, Get, Post, Put, Body, Param, Query, UseGuards } from '@nestjs/common';
+import { Controller, Get, Post, Put, Delete, Body, Param, Query, UseGuards } from '@nestjs/common';
 import { OrdersService } from './orders.service';
 import { JwtAuthGuard } from '../../auth/guards/jwt-auth.guard';
 import { RolesGuard } from '../../auth/guards/roles.guard';
@@ -23,6 +23,7 @@ export class OrdersController {
     @Query('status') status?: string,
     @Query('companyId') companyId?: string,
     @Query('invoiced') invoiced?: string,
+    @Query('search') search?: string,
     @Query('page') page?: string,
     @Query('limit') limit?: string,
   ) {
@@ -32,6 +33,7 @@ export class OrdersController {
       status,
       companyId,
       invoiced: invoiced !== undefined ? invoiced === 'true' : undefined,
+      search,
       page: page ? parseInt(page, 10) : 1,
       limit: limit ? parseInt(limit, 10) : 20,
     });
@@ -50,6 +52,11 @@ export class OrdersController {
   @Put(':id')
   async updateOrder(@Param('id') id: string, @GetUser('role') userRole: Role, @Body() body: any) {
     return this.ordersService.updateOrder(id, userRole, body);
+  }
+
+  @Delete(':id')
+  async deleteOrder(@Param('id') id: string, @GetUser('role') userRole: Role) {
+    return this.ordersService.deleteOrder(id, userRole);
   }
 
   @Roles(Role.ADMIN)

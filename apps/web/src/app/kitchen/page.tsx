@@ -45,13 +45,20 @@ export default function KitchenBoardPage() {
     },
   });
 
+  const formatTime = (timeInput?: string | Date) => {
+    if (!timeInput) return '--:--';
+    const d = new Date(timeInput);
+    if (isNaN(d.getTime())) return String(timeInput);
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
+  };
+
   return (
     <AppLayout>
       <div className="space-y-6">
         <div className="flex items-center justify-between">
           <div>
             <h1 className="text-2xl font-extrabold text-slate-900">Kitchen Prep Board</h1>
-            <p className="text-sm text-slate-500 mt-1">Real-time station prep units. Track cooking started, completed, and late/at-risk items.</p>
+            <p className="text-sm text-slate-500 mt-1">Real-time station prep units. Tracks cooking completion times, dispatch deadlines, and late items.</p>
           </div>
 
           <div className="flex items-center gap-3">
@@ -138,6 +145,26 @@ export default function KitchenBoardPage() {
                     >
                       {unit.status}
                     </span>
+                  </div>
+
+                  {/* Expected Cooking Completion & Logistics Timings Badge */}
+                  <div className="p-3 bg-amber-50/90 border border-amber-200/80 rounded-lg text-xs space-y-1.5">
+                    <div className="flex items-center justify-between">
+                      <span className="font-extrabold text-amber-950 text-xs flex items-center gap-1">
+                        <Clock className="w-3.5 h-3.5 text-amber-600" />
+                        Expected Cooking Completion:
+                      </span>
+                      <span className="font-black text-amber-950 text-xs bg-amber-200/80 px-2 py-0.5 rounded-md shadow-xs">
+                        {formatTime(unit.expectedCookingCompletionAt || unit.order?.plannedKitchenReadyAt)}
+                      </span>
+                    </div>
+                    <div className="flex items-center justify-between text-[11px] text-slate-600 pt-1 border-t border-amber-200/50">
+                      <span>Dispatch: <strong>{formatTime(unit.plannedDispatchReadyAt || unit.order?.plannedDispatchReadyAt)}</strong></span>
+                      <span>Delivery: <strong>{unit.order?.deliveryTime || '12:00'}</strong></span>
+                    </div>
+                    <p className="text-[10px] text-amber-700 font-medium">
+                      • 30m before dispatch | 1h 30m before delivery
+                    </p>
                   </div>
 
                   {/* Combination Options details */}

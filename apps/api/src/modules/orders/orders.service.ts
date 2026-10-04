@@ -156,6 +156,7 @@ export class OrdersService {
     status?: string;
     companyId?: string;
     invoiced?: boolean;
+    search?: string;
     page?: number;
     limit?: number;
   }) {
@@ -169,6 +170,20 @@ export class OrdersService {
     if (filters.companyId) where.employee = { companyId: filters.companyId };
     if (filters.invoiced !== undefined) {
       where.invoiceId = filters.invoiced ? { not: null } : null;
+    }
+
+    if (filters.search && filters.search.trim() !== '') {
+      const q = filters.search.trim();
+      const isNum = !isNaN(Number(q));
+      where.OR = [
+        ...(isNum ? [{ orderNumber: Number(q) }] : []),
+        { employee: { name: { contains: q, mode: 'insensitive' } } },
+        { employee: { company: { name: { contains: q, mode: 'insensitive' } } } },
+        { lines: { some: { dishName: { contains: q, mode: 'insensitive' } } } },
+        { deliveryAddress: { addressLine: { contains: q, mode: 'insensitive' } } },
+        { status: { contains: q, mode: 'insensitive' } },
+        { packagingType: { contains: q, mode: 'insensitive' } },
+      ];
     }
 
     if (filters.deliveryDateFrom || filters.deliveryDateTo) {
@@ -464,6 +479,7 @@ export class OrdersService {
       deliveryDate?: string;
       deliveryTime?: string;
       packagingType?: string;
+      status?: OrderStatus;
       lines?: Array<{
         dishId: string;
         quantity: number;
@@ -488,7 +504,7 @@ export class OrdersService {
       throw new BadRequestException('Cannot edit an order that has already been invoiced.');
     }
 
-    if (['DELIVERED', 'CANCELLED', 'REJECTED'].includes(existingOrder.status)) {
+    if (['DELIVERED', 'CANCELLED', 'REJECTED'].includes(existingOrder.status) && userRole !== Role.ADMIN) {
       throw new BadRequestException(`Cannot edit an order with status ${existingOrder.status}.`);
     }
 
@@ -511,6 +527,7 @@ export class OrdersService {
     const addressId = data.deliveryAddressId || existingOrder.deliveryAddressId;
     const deliveryTime = data.deliveryTime || existingOrder.deliveryTime;
     const packagingType = data.packagingType || existingOrder.packagingType;
+    const targetStatus = data.status || (existingOrder.status as OrderStatus);
 
     const resolvedTierId =
       employee.company.priceTierId || (await this.prisma.priceTier.findFirst({ where: { isDefault: true } }))?.id;
@@ -634,6 +651,7 @@ export class OrdersService {
           deliveryDate: deliveryDateObj,
           deliveryTime,
           packagingType,
+          status: targetStatus,
           totalCents: orderTotalCents,
           plannedDispatchReadyAt,
           plannedKitchenReadyAt,
@@ -648,13 +666,40 @@ export class OrdersService {
           deliveryDate: deliveryDateObj,
           deliveryTime,
           packagingType,
+          status: targetStatus,
           plannedDispatchReadyAt,
           plannedKitchenReadyAt,
         },
       });
     }
 
+    if (targetStatus === OrderStatus.CONFIRMED && existingOrder.status !== OrderStatus.CONFIRMED) {
+      await this.generatePrepUnitsForOrder(orderId);
+    }
+
     return this.getOrderById(orderId);
+  }
+
+  /**
+   * Delete an order if not invoiced
+   */
+  async deleteOrder(orderId: string, userRole: Role) {
+    const existingOrder = await this.prisma.order.findUnique({
+      where: { id: orderId },
+    });
+
+    if (!existingOrder) throw new NotFoundException('Order not found');
+
+    if (existingOrder.invoiceId) {
+      throw new BadRequestException('Cannot delete an order that has already been invoiced.');
+    }
+
+    // Delete related prep units, order lines, and order
+    await this.prisma.kitchenPrepUnit.deleteMany({ where: { orderId } });
+    await this.prisma.orderLine.deleteMany({ where: { orderId } });
+    await this.prisma.order.delete({ where: { id: orderId } });
+
+    return { success: true, message: `Order #${existingOrder.orderNumber} deleted successfully.` };
   }
 
   /**

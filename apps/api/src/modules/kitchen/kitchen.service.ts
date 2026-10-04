@@ -48,12 +48,32 @@ export class KitchenService {
     const now = new Date();
 
     const formattedUnits = prepUnits.map((unit) => {
-      const isLate = unit.order.plannedKitchenReadyAt
-        ? unit.order.plannedKitchenReadyAt < now && unit.status !== PrepUnitStatus.DONE
+      let expectedCookingCompletionAt = unit.order.plannedKitchenReadyAt;
+      let plannedDispatchReadyAt = unit.order.plannedDispatchReadyAt;
+
+      if (!expectedCookingCompletionAt || !plannedDispatchReadyAt) {
+        const delDateObj = new Date(unit.order.deliveryDate);
+        const [delH, delM] = (unit.order.deliveryTime || '12:00').split(':').map(Number);
+        const plannedDeliveryDateTime = new Date(delDateObj);
+        plannedDeliveryDateTime.setHours(isNaN(delH) ? 12 : delH, isNaN(delM) ? 0 : delM, 0, 0);
+
+        const leadMins = unit.order.employee?.company?.deliveryLeadMinutes || 60;
+        if (!plannedDispatchReadyAt) {
+          plannedDispatchReadyAt = new Date(plannedDeliveryDateTime.getTime() - leadMins * 60 * 1000);
+        }
+        if (!expectedCookingCompletionAt) {
+          expectedCookingCompletionAt = new Date(plannedDispatchReadyAt.getTime() - 30 * 60 * 1000);
+        }
+      }
+
+      const isLate = expectedCookingCompletionAt
+        ? expectedCookingCompletionAt < now && unit.status !== PrepUnitStatus.DONE
         : false;
 
       return {
         ...unit,
+        expectedCookingCompletionAt,
+        plannedDispatchReadyAt,
         isLate,
       };
     });

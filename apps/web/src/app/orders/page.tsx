@@ -22,12 +22,19 @@ import {
   Trash2,
   Check,
   Edit2,
+  Search,
+  Eye,
+  AlertTriangle,
+  X,
 } from 'lucide-react';
+import { useAuth } from '../../lib/auth-context';
 
 export default function OrdersPage() {
+  const { user } = useAuth();
   const queryClient = useQueryClient();
   const [selectedStatus, setSelectedStatus] = useState<string>('');
   const [selectedCompanyId, setSelectedCompanyId] = useState<string>('');
+  const [searchQuery, setSearchQuery] = useState<string>('');
   const [page, setPage] = useState(1);
 
   // New / Edit Order Modal State
@@ -40,21 +47,28 @@ export default function OrdersPage() {
   const [orderDeliveryDate, setOrderDeliveryDate] = useState(new Date().toISOString().split('T')[0]);
   const [orderDeliveryTime, setOrderDeliveryTime] = useState('12:30');
   const [orderPackaging, setOrderPackaging] = useState('Eco Box');
+  const [orderStatus, setOrderStatus] = useState<string>('PLACED');
   const [selectedDishId, setSelectedDishId] = useState('');
   const [comboQty, setComboQty] = useState(1);
   const [selectedOptionIds, setSelectedOptionIds] = useState<string[]>([]);
   const [orderLines, setOrderLines] = useState<any[]>([]);
 
+  // Read / Detail Modal State
+  const [viewingOrder, setViewingOrder] = useState<any | null>(null);
+
+  // Delete Modal State
+  const [deletingOrderId, setDeletingOrderId] = useState<string | null>(null);
+
   // Cutoff trigger state
   const [cutoffDate, setCutoffDate] = useState(new Date().toISOString().split('T')[0]);
 
   const { data: ordersData, isLoading } = useQuery({
-    queryKey: ['orders', selectedStatus, selectedCompanyId, page],
+    queryKey: ['orders', selectedStatus, selectedCompanyId, searchQuery, page],
     queryFn: () =>
       fetchApi(
         `/orders?page=${page}&limit=10${selectedStatus ? `&status=${selectedStatus}` : ''}${
           selectedCompanyId ? `&companyId=${selectedCompanyId}` : ''
-        }`,
+        }${searchQuery ? `&search=${encodeURIComponent(searchQuery)}` : ''}`,
       ),
   });
 
@@ -104,6 +118,21 @@ export default function OrdersPage() {
     },
   });
 
+  const deleteOrderMutation = useMutation({
+    mutationFn: (id: string) =>
+      fetchApi(`/orders/${id}`, {
+        method: 'DELETE',
+      }),
+    onSuccess: () => {
+      queryClient.invalidateQueries({ queryKey: ['orders'] });
+      setDeletingOrderId(null);
+    },
+    onError: (err: any) => {
+      alert(err.message || 'Failed to delete order');
+      setDeletingOrderId(null);
+    },
+  });
+
   const triggerCutoffMutation = useMutation({
     mutationFn: (date: string) =>
       fetchApi('/orders/process-cutoff', {
@@ -118,6 +147,13 @@ export default function OrdersPage() {
 
   const formatUsd = (cents: number) => `$${(cents / 100).toFixed(2)}`;
 
+  const formatTime = (timeInput?: string | Date) => {
+    if (!timeInput) return '--:--';
+    const d = new Date(timeInput);
+    if (isNaN(d.getTime())) return String(timeInput);
+    return d.toLocaleTimeString([], { hour: '2-digit', minute: '2-digit', hour12: true });
+  };
+
   const closeModal = () => {
     setIsOrderModalOpen(false);
     setIsEditing(false);
@@ -127,15 +163,17 @@ export default function OrdersPage() {
     setSelectedOptionIds([]);
     setOrderLines([]);
     setComboQty(1);
+    setOrderStatus('PLACED');
     setModalError('');
   };
 
   /**
-   * Check if order is eligible for editing (within 30 minutes of creation & not delivered/cancelled/invoiced)
+   * Check if order is eligible for editing (within 30 minutes of creation & not delivered/cancelled/invoiced, or ADMIN)
    */
   const getOrderEditEligibility = (ord: any) => {
+    if (user?.role === 'ADMIN') return { eligible: true, remainingMins: 999, isAdminOverride: true };
     if (ord.invoiceId || ord.status === 'DELIVERED' || ord.status === 'CANCELLED' || ord.status === 'REJECTED') {
-      return { eligible: false, remainingMins: 0 };
+      return { eligible: false, remainingMins: 0, isAdminOverride: false };
     }
     const createdTime = new Date(ord.createdAt).getTime();
     const nowTime = new Date().getTime();
@@ -144,6 +182,7 @@ export default function OrdersPage() {
     return {
       eligible: remainingMins > 0,
       remainingMins,
+      isAdminOverride: false,
     };
   };
 
@@ -155,6 +194,7 @@ export default function OrdersPage() {
     setOrderDeliveryDate(new Date(ord.deliveryDate).toISOString().split('T')[0]);
     setOrderDeliveryTime(ord.deliveryTime || '12:30');
     setOrderPackaging(ord.packagingType || 'Eco Box');
+    setOrderStatus(ord.status || 'PLACED');
 
     // Pre-populate order lines
     const formattedLines = ord.lines?.map((line: any) => ({
@@ -251,7 +291,7 @@ export default function OrdersPage() {
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
             <h1 className="text-2xl font-extrabold text-slate-900">Order Management</h1>
-            <p className="text-sm text-slate-500 mt-1">Place employee meal orders, inspect historical price snapshots, and edit orders within 30 minutes.</p>
+            <p className="text-sm text-slate-500 mt-1">Place, search, view details, edit, and delete employee meal orders with historical price snapshots.</p>
           </div>
 
           <div className="flex items-center gap-3">
@@ -283,14 +323,43 @@ export default function OrdersPage() {
           </div>
         </div>
 
-        {/* Filters */}
+        {/* Filters & Search Bar */}
         <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-wrap items-center gap-4 text-xs">
+          {/* Search Input Bar */}
+          <div className="flex-1 min-w-[260px] relative">
+            <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
+            <input
+              type="text"
+              value={searchQuery}
+              onChange={(e) => {
+                setSearchQuery(e.target.value);
+                setPage(1);
+              }}
+              placeholder="Search order #, employee name, company, dish..."
+              className="w-full pl-9 pr-8 py-2 rounded-lg border border-slate-300 text-xs focus:ring-2 focus:ring-emerald-500/20 focus:outline-none bg-white"
+            />
+            {searchQuery && (
+              <button
+                onClick={() => {
+                  setSearchQuery('');
+                  setPage(1);
+                }}
+                className="absolute right-2.5 top-1/2 -translate-y-1/2 text-slate-400 hover:text-slate-600 font-bold"
+              >
+                ✕
+              </button>
+            )}
+          </div>
+
           <div className="flex items-center gap-2">
             <span className="font-semibold text-slate-700 uppercase">Status:</span>
             <select
               value={selectedStatus}
-              onChange={(e) => setSelectedStatus(e.target.value)}
-              className="px-3 py-2 rounded-lg border border-slate-300 text-xs focus:outline-none"
+              onChange={(e) => {
+                setSelectedStatus(e.target.value);
+                setPage(1);
+              }}
+              className="px-3 py-2 rounded-lg border border-slate-300 text-xs focus:outline-none bg-white"
             >
               <option value="">All Statuses</option>
               <option value="DRAFT">DRAFT</option>
@@ -305,8 +374,11 @@ export default function OrdersPage() {
             <span className="font-semibold text-slate-700 uppercase">Company:</span>
             <select
               value={selectedCompanyId}
-              onChange={(e) => setSelectedCompanyId(e.target.value)}
-              className="px-3 py-2 rounded-lg border border-slate-300 text-xs focus:outline-none"
+              onChange={(e) => {
+                setSelectedCompanyId(e.target.value);
+                setPage(1);
+              }}
+              className="px-3 py-2 rounded-lg border border-slate-300 text-xs focus:outline-none bg-white"
             >
               <option value="">All Companies</option>
               {companies?.map((c: any) => (
@@ -322,6 +394,12 @@ export default function OrdersPage() {
         <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
           {isLoading ? (
             <div className="p-8 text-center text-slate-500">Loading orders...</div>
+          ) : ordersData?.orders?.length === 0 ? (
+            <div className="p-12 text-center text-slate-500 space-y-2">
+              <ShoppingBag className="w-8 h-8 text-slate-400 mx-auto" />
+              <p className="font-bold text-slate-700">No orders found</p>
+              <p className="text-xs text-slate-400">Try adjusting your search or filters.</p>
+            </div>
           ) : (
             <table className="w-full text-left text-sm border-collapse">
               <thead>
@@ -357,6 +435,8 @@ export default function OrdersPage() {
                               ? 'bg-blue-100 text-blue-800'
                               : ord.status === 'PLACED'
                               ? 'bg-amber-100 text-amber-800'
+                              : ord.status === 'CANCELLED'
+                              ? 'bg-rose-100 text-rose-800'
                               : 'bg-slate-100 text-slate-600'
                           }`}
                         >
@@ -373,16 +453,39 @@ export default function OrdersPage() {
                         )}
                       </td>
                       <td className="p-4">
-                        {editStatus.eligible ? (
+                        <div className="flex items-center gap-2">
+                          {/* Read / Details */}
                           <button
-                            onClick={() => handleOpenEditModal(ord)}
-                            className="px-2.5 py-1.5 bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-100 text-xs font-semibold rounded-lg flex items-center gap-1 transition"
+                            onClick={() => setViewingOrder(ord)}
+                            title="View Order Details"
+                            className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold flex items-center gap-1 transition"
                           >
-                            <Edit2 className="w-3.5 h-3.5" /> Edit ({editStatus.remainingMins}m left)
+                            <Eye className="w-3.5 h-3.5" /> Details
                           </button>
-                        ) : (
-                          <span className="text-[11px] text-slate-400 font-medium">Locked</span>
-                        )}
+
+                          {/* Edit */}
+                          {editStatus.eligible ? (
+                            <button
+                              onClick={() => handleOpenEditModal(ord)}
+                              className="px-2.5 py-1.5 bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-100 text-xs font-semibold rounded-lg flex items-center gap-1 transition"
+                            >
+                              <Edit2 className="w-3.5 h-3.5" /> Edit {editStatus.isAdminOverride ? '' : `(${editStatus.remainingMins}m)`}
+                            </button>
+                          ) : (
+                            <span className="text-[11px] text-slate-400 font-medium">Locked</span>
+                          )}
+
+                          {/* Delete */}
+                          {!ord.invoiceId && (
+                            <button
+                              onClick={() => setDeletingOrderId(ord.id)}
+                              title="Delete Order"
+                              className="p-1.5 bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200 rounded-lg text-xs font-semibold transition"
+                            >
+                              <Trash2 className="w-3.5 h-3.5" />
+                            </button>
+                          )}
+                        </div>
                       </td>
                     </tr>
                   );
@@ -391,6 +494,131 @@ export default function OrdersPage() {
             </table>
           )}
         </div>
+
+        {/* Read / View Order Details Modal */}
+        {viewingOrder && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl max-w-2xl w-full p-6 shadow-2xl space-y-4 max-h-[90vh] overflow-y-auto">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+                <div className="flex items-center gap-2">
+                  <ShoppingBag className="w-5 h-5 text-emerald-600" />
+                  <h3 className="font-bold text-slate-900 text-base">Order #{viewingOrder.orderNumber} Details</h3>
+                  <span
+                    className={`px-2.5 py-0.5 text-xs font-bold rounded-full ${
+                      viewingOrder.status === 'CONFIRMED'
+                        ? 'bg-emerald-100 text-emerald-800'
+                        : viewingOrder.status === 'DELIVERED'
+                        ? 'bg-blue-100 text-blue-800'
+                        : viewingOrder.status === 'PLACED'
+                        ? 'bg-amber-100 text-amber-800'
+                        : 'bg-slate-100 text-slate-600'
+                    }`}
+                  >
+                    {viewingOrder.status}
+                  </span>
+                </div>
+                <button onClick={() => setViewingOrder(null)} className="text-slate-400 font-bold p-1 hover:text-slate-600">
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+
+              {/* Order Logistics Summary */}
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 text-xs">
+                <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
+                  <p className="font-bold text-slate-900 flex items-center gap-1.5">
+                    <Building2 className="w-3.5 h-3.5 text-indigo-600" /> Employee & Company
+                  </p>
+                  <p className="text-slate-800 font-semibold">{viewingOrder.employee?.name}</p>
+                  <p className="text-slate-500">{viewingOrder.employee?.company?.name}</p>
+                  <p className="text-slate-500">{viewingOrder.employee?.email}</p>
+                </div>
+
+                <div className="p-3.5 bg-slate-50 border border-slate-200 rounded-xl space-y-1">
+                  <p className="font-bold text-slate-900 flex items-center gap-1.5">
+                    <Clock className="w-3.5 h-3.5 text-amber-600" /> Timings & Packaging
+                  </p>
+                  <p className="text-slate-800">
+                    Delivery Date: <strong>{new Date(viewingOrder.deliveryDate).toISOString().split('T')[0]}</strong>
+                  </p>
+                  <p className="text-slate-800">
+                    Delivery Time: <strong>{viewingOrder.deliveryTime}</strong>
+                  </p>
+                  <p className="text-amber-800 font-semibold">
+                    Expected Cooking Completion: <strong>{formatTime(viewingOrder.plannedKitchenReadyAt)}</strong>
+                  </p>
+                  <p className="text-slate-500">Packaging: {viewingOrder.packagingType}</p>
+                </div>
+              </div>
+
+              {/* Order Lines */}
+              <div className="space-y-2">
+                <p className="font-bold text-slate-900 text-xs">Order Items & Options:</p>
+                <div className="border border-slate-200 rounded-xl divide-y divide-slate-100 overflow-hidden text-xs">
+                  {viewingOrder.lines?.map((line: any) => (
+                    <div key={line.id} className="p-3 bg-white space-y-1">
+                      <div className="flex items-center justify-between">
+                        <span className="font-extrabold text-slate-900">
+                          {line.quantity}x {line.dishName} <span className="text-[10px] font-normal text-slate-400">({line.dishSku})</span>
+                        </span>
+                        <span className="font-bold text-emerald-700">{formatUsd(line.totalCents)}</span>
+                      </div>
+                      {line.combinations?.map((combo: any, cIdx: number) => (
+                        <div key={cIdx} className="pl-3 text-[11px] text-slate-600 border-l-2 border-slate-200 space-y-0.5">
+                          {combo.options?.map((opt: any) => (
+                            <p key={opt.id}>
+                              • {opt.optionGroupName}: <strong>{opt.optionName}</strong> {opt.portionSize && `(${opt.portionSize})`}
+                            </p>
+                          ))}
+                        </div>
+                      ))}
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div className="flex items-center justify-between pt-3 border-t border-slate-100">
+                <span className="text-xs font-bold text-slate-500">
+                  Invoice Status: {viewingOrder.invoiceId ? 'INVOICED' : 'UNINVOICED'}
+                </span>
+                <span className="text-base font-black text-emerald-700">
+                  Total: {formatUsd(viewingOrder.totalCents)}
+                </span>
+              </div>
+            </div>
+          </div>
+        )}
+
+        {/* Delete Confirmation Modal */}
+        {deletingOrderId && (
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
+            <div className="bg-white rounded-2xl max-w-md w-full p-6 shadow-2xl space-y-4">
+              <div className="flex items-center gap-3 text-rose-600">
+                <AlertTriangle className="w-7 h-7 shrink-0" />
+                <h3 className="font-extrabold text-slate-900 text-lg">Delete Order</h3>
+              </div>
+
+              <p className="text-xs text-slate-600">
+                Are you sure you want to delete order #{ordersData?.orders?.find((o: any) => o.id === deletingOrderId)?.orderNumber}? This will remove all order line options and kitchen prep units.
+              </p>
+
+              <div className="flex items-center justify-end gap-3 pt-3">
+                <button
+                  onClick={() => setDeletingOrderId(null)}
+                  className="px-4 py-2 text-xs font-bold text-slate-600 hover:text-slate-800"
+                >
+                  Cancel
+                </button>
+                <button
+                  onClick={() => deleteOrderMutation.mutate(deletingOrderId)}
+                  disabled={deleteOrderMutation.isPending}
+                  className="px-4.5 py-2 bg-rose-600 hover:bg-rose-700 text-white font-bold text-xs rounded-lg transition shadow-sm"
+                >
+                  {deleteOrderMutation.isPending ? 'Deleting...' : 'Yes, Delete Order'}
+                </button>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Create / Edit Order Modal */}
         {isOrderModalOpen && (
@@ -423,7 +651,7 @@ export default function OrdersPage() {
                     Step 1: Select Employee & Delivery Details
                   </p>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-3 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
                     <div className="sm:col-span-1">
                       <label className="block font-semibold text-slate-700 mb-1">Customer Employee *</label>
                       <select
@@ -432,7 +660,6 @@ export default function OrdersPage() {
                         onChange={(e) => {
                           const newEmpId = e.target.value;
                           setOrderEmployeeId(newEmpId);
-                          // CRITICAL FIX: Reset all selected dishes, option choices, and staged order lines on employee change
                           setSelectedDishId('');
                           setSelectedOptionIds([]);
                           setComboQty(1);
@@ -469,6 +696,23 @@ export default function OrdersPage() {
                         className="w-full p-2.5 rounded-lg border border-slate-300 text-xs bg-white"
                       />
                     </div>
+
+                    {isEditing && (
+                      <div>
+                        <label className="block font-semibold text-slate-700 mb-1">Order Status</label>
+                        <select
+                          value={orderStatus}
+                          onChange={(e) => setOrderStatus(e.target.value)}
+                          className="w-full p-2.5 rounded-lg border border-slate-300 text-xs bg-white font-bold text-slate-800"
+                        >
+                          <option value="DRAFT">DRAFT</option>
+                          <option value="PLACED">PLACED</option>
+                          <option value="CONFIRMED">CONFIRMED</option>
+                          <option value="DELIVERED">DELIVERED</option>
+                          <option value="CANCELLED">CANCELLED</option>
+                        </select>
+                      </div>
+                    )}
                   </div>
                 </div>
 
@@ -693,6 +937,7 @@ export default function OrdersPage() {
                             deliveryDate: orderDeliveryDate,
                             deliveryTime: orderDeliveryTime,
                             packagingType: orderPackaging,
+                            status: orderStatus,
                             lines: orderLines,
                           },
                         });
