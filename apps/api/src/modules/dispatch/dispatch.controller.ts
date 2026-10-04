@@ -47,8 +47,8 @@ export class DispatchController {
 
   @Roles(Role.DRIVER, Role.ADMIN)
   @Get('partner/my-deliveries')
-  async getPartnerMyDeliveries(@GetUser('id') userId: string) {
-    return this.dispatchService.getPartnerMyDeliveries(userId);
+  async getPartnerMyDeliveries(@GetUser('id') userId: string, @Query('mode') mode?: string) {
+    return this.dispatchService.getPartnerMyDeliveries(userId, mode);
   }
 
   @Roles(Role.ADMIN, Role.DISPATCH)
@@ -90,8 +90,12 @@ export class DispatchController {
 
   @Roles(Role.DRIVER, Role.ADMIN)
   @Get('driver/my-drops')
-  async getMyDrops(@GetUser('id') driverId: string, @Query('date') date?: string) {
-    return this.dispatchService.getDriverMyDrops(driverId, date);
+  async getMyDrops(
+    @GetUser('id') driverId: string,
+    @Query('date') date?: string,
+    @Query('mode') mode?: string,
+  ) {
+    return this.dispatchService.getDriverMyDrops(driverId, date, mode);
   }
 
   @Roles(Role.DRIVER, Role.ADMIN)

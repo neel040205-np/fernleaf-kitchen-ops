@@ -11,10 +11,11 @@ export default function DriverPage() {
   const [selectedDrop, setSelectedDrop] = useState<any>(null);
   const [driverNote, setDriverNote] = useState('');
   const [photoUrl, setPhotoUrl] = useState('');
+  const [filterMode, setFilterMode] = useState<'today' | 'upcoming' | 'all'>('today');
 
   const { data: partnerData, isLoading } = useQuery({
-    queryKey: ['myPartnerDeliveries'],
-    queryFn: () => fetchApi('/dispatch/partner/my-deliveries'),
+    queryKey: ['myPartnerDeliveries', filterMode],
+    queryFn: () => fetchApi(`/dispatch/partner/my-deliveries?mode=${filterMode}`),
     refetchInterval: 10000,
   });
 
@@ -32,7 +33,35 @@ export default function DriverPage() {
     },
   });
 
-  const drops = partnerData?.drops || [];
+  const formatDateFormatted = (dateStr: string) => {
+    if (!dateStr) return '';
+    const d = new Date(dateStr);
+    const day = String(d.getDate()).padStart(2, '0');
+    const month = String(d.getMonth() + 1).padStart(2, '0');
+    const year = d.getFullYear();
+    return `${day}/${month}/${year}`;
+  };
+
+  const formatTime12h = (timeStr?: string) => {
+    if (!timeStr) return '';
+    const [h, m] = timeStr.split(':').map(Number);
+    if (isNaN(h)) return timeStr;
+    const ampm = h >= 12 ? 'PM' : 'AM';
+    const h12 = h % 12 || 12;
+    const mStr = String(m || 0).padStart(2, '0');
+    return `${h12}:${mStr} ${ampm} IST`;
+  };
+
+  const todayStr = formatDateFormatted(new Date().toISOString());
+
+  // Filter out any cancelled orders from drops
+  const rawDrops = partnerData?.drops || [];
+  const drops = rawDrops
+    .map((drop: any) => ({
+      ...drop,
+      orders: drop.orders?.filter((o: any) => o.status !== 'CANCELLED' && o.status !== 'REJECTED'),
+    }))
+    .filter((drop: any) => drop.orders && drop.orders.length > 0);
 
   return (
     <AppLayout>
@@ -48,14 +77,52 @@ export default function DriverPage() {
           <p className="text-xs text-emerald-200">Real-time order tracking & delivery completion.</p>
         </div>
 
+        {/* Date Filter Tabs */}
+        <div className="flex items-center gap-1.5 p-1 bg-slate-100 rounded-xl text-xs font-bold">
+          <button
+            onClick={() => setFilterMode('today')}
+            className={`flex-1 py-2 px-2.5 rounded-lg text-center transition cursor-pointer ${
+              filterMode === 'today'
+                ? 'bg-emerald-600 text-white shadow-xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            Today ({todayStr})
+          </button>
+          <button
+            onClick={() => setFilterMode('upcoming')}
+            className={`flex-1 py-2 px-2.5 rounded-lg text-center transition cursor-pointer ${
+              filterMode === 'upcoming'
+                ? 'bg-emerald-600 text-white shadow-xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            Upcoming
+          </button>
+          <button
+            onClick={() => setFilterMode('all')}
+            className={`flex-1 py-2 px-2.5 rounded-lg text-center transition cursor-pointer ${
+              filterMode === 'all'
+                ? 'bg-emerald-600 text-white shadow-xs'
+                : 'text-slate-600 hover:text-slate-900'
+            }`}
+          >
+            All Drops
+          </button>
+        </div>
+
         {/* Drops List */}
         {isLoading ? (
           <div className="p-8 text-center text-slate-500">Loading your assigned deliveries...</div>
         ) : drops.length === 0 ? (
           <div className="p-12 text-center bg-white rounded-2xl border border-slate-200 text-slate-500 space-y-2">
             <CheckCircle2 className="w-8 h-8 text-emerald-500 mx-auto" />
-            <p className="font-bold text-slate-800 text-base">All Deliveries Complete!</p>
-            <p className="text-xs text-slate-400">No pending company deliveries assigned to your partner account.</p>
+            <p className="font-bold text-slate-800 text-base">No Deliveries Found</p>
+            <p className="text-xs text-slate-400">
+              {filterMode === 'today'
+                ? `No pending deliveries assigned to your partner account for today (${todayStr}).`
+                : 'No deliveries assigned for the selected view.'}
+            </p>
           </div>
         ) : (
           <div className="space-y-4">
@@ -68,10 +135,15 @@ export default function DriverPage() {
               >
                 <div className="flex items-start justify-between">
                   <div>
-                    <span className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-800 bg-emerald-100 px-2.5 py-0.5 rounded-full">
-                      Target: {drop.deliveryTime}
-                    </span>
-                    <h3 className="font-black text-slate-900 text-lg mt-1">{drop.company?.name}</h3>
+                    <div className="flex items-center gap-1.5 flex-wrap">
+                      <span className="text-[10px] font-extrabold uppercase tracking-wider text-emerald-800 bg-emerald-100 px-2.5 py-0.5 rounded-full">
+                        {formatDateFormatted(drop.deliveryDate)}
+                      </span>
+                      <span className="text-[10px] font-extrabold uppercase tracking-wider text-amber-800 bg-amber-100 px-2.5 py-0.5 rounded-full flex items-center gap-1">
+                        <Clock className="w-3 h-3 text-amber-600" /> {formatTime12h(drop.deliveryTime)}
+                      </span>
+                    </div>
+                    <h3 className="font-black text-slate-900 text-lg mt-2">{drop.company?.name}</h3>
                   </div>
 
                   <span

@@ -117,20 +117,36 @@ export class DispatchService {
   /**
    * Delivery Partner real-time tracking view for assigned company orders & drops
    */
-  async getPartnerMyDeliveries(userId: string) {
+  async getPartnerMyDeliveries(userId: string, mode: string = 'all') {
     const partner = await this.prisma.deliveryPartner.findFirst({
       where: { OR: [{ userId }, { user: { id: userId } }] },
     });
 
-    const whereCondition = partner ? { OR: [{ driverId: userId }, { deliveryPartnerId: partner.id }] } : { driverId: userId };
+    const whereCondition: any = partner
+      ? { OR: [{ driverId: userId }, { deliveryPartnerId: partner.id }] }
+      : { driverId: userId };
 
-    const drops = await this.prisma.deliveryDrop.findMany({
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+
+    if (mode === 'today') {
+      const todayEnd = new Date(todayStart);
+      todayEnd.setDate(todayStart.getDate() + 1);
+      whereCondition.deliveryDate = { gte: todayStart, lt: todayEnd };
+    } else if (mode === 'upcoming') {
+      whereCondition.deliveryDate = { gte: todayStart };
+    }
+
+    const rawDrops = await this.prisma.deliveryDrop.findMany({
       where: whereCondition,
       include: {
         company: true,
         address: true,
         deliveryPartner: true,
         orders: {
+          where: {
+            status: { notIn: [OrderStatus.CANCELLED, OrderStatus.REJECTED] },
+          },
           include: {
             employee: true,
             deliveryAddress: true,
@@ -138,11 +154,18 @@ export class DispatchService {
           },
         },
       },
-      orderBy: { deliveryTime: 'asc' },
+      orderBy: [{ deliveryDate: 'asc' }, { deliveryTime: 'asc' }],
     });
 
+    const drops = rawDrops.filter((d) => d.orders && d.orders.length > 0);
+
     const orders = await this.prisma.order.findMany({
-      where: partner ? { OR: [{ deliveryPartnerId: partner.id }] } : { id: 'none' },
+      where: partner
+        ? {
+            OR: [{ deliveryPartnerId: partner.id }],
+            status: { notIn: [OrderStatus.CANCELLED, OrderStatus.REJECTED] },
+          }
+        : { id: 'none' },
       include: {
         employee: { include: { company: true } },
         deliveryAddress: true,
@@ -216,7 +239,7 @@ export class DispatchService {
       });
     }
 
-    const drops = await this.prisma.deliveryDrop.findMany({
+    const rawDrops = await this.prisma.deliveryDrop.findMany({
       where: {
         deliveryDate: { gte: targetDate, lt: nextDate },
       },
@@ -226,6 +249,9 @@ export class DispatchService {
         driver: { select: { id: true, name: true, email: true } },
         deliveryPartner: true,
         orders: {
+          where: {
+            status: { notIn: [OrderStatus.CANCELLED, OrderStatus.REJECTED] },
+          },
           include: {
             employee: true,
             deliveryPartner: true,
@@ -235,6 +261,8 @@ export class DispatchService {
       },
       orderBy: { deliveryTime: 'asc' },
     });
+
+    const drops = rawDrops.filter((d) => d.orders && d.orders.length > 0);
 
     return {
       deliveryDate,
@@ -275,29 +303,42 @@ export class DispatchService {
   }
 
   /**
-   * Driver view: Get today's assigned drops for logged-in driver in time order
+   * Driver view: Get assigned drops for logged-in driver with date/mode filters
    */
-  async getDriverMyDrops(driverUserId: string, dateStr?: string) {
-    const targetDate = dateStr ? new Date(dateStr) : new Date();
-    targetDate.setHours(0, 0, 0, 0);
-
-    const nextDate = new Date(targetDate);
-    nextDate.setDate(targetDate.getDate() + 1);
-
+  async getDriverMyDrops(driverUserId: string, dateStr?: string, filterMode: string = 'all') {
     const partner = await this.prisma.deliveryPartner.findFirst({ where: { userId: driverUserId } });
 
     const whereCondition: any = {
-      deliveryDate: { gte: targetDate, lt: nextDate },
       OR: [{ driverId: driverUserId }, partner ? { deliveryPartnerId: partner.id } : {}],
     };
 
-    return this.prisma.deliveryDrop.findMany({
+    const todayStart = new Date();
+    todayStart.setHours(0, 0, 0, 0);
+
+    if (dateStr) {
+      const targetDate = new Date(dateStr);
+      targetDate.setHours(0, 0, 0, 0);
+      const nextDate = new Date(targetDate);
+      nextDate.setDate(targetDate.getDate() + 1);
+      whereCondition.deliveryDate = { gte: targetDate, lt: nextDate };
+    } else if (filterMode === 'today') {
+      const todayEnd = new Date(todayStart);
+      todayEnd.setDate(todayStart.getDate() + 1);
+      whereCondition.deliveryDate = { gte: todayStart, lt: todayEnd };
+    } else if (filterMode === 'upcoming') {
+      whereCondition.deliveryDate = { gte: todayStart };
+    }
+
+    const rawDrops = await this.prisma.deliveryDrop.findMany({
       where: whereCondition,
       include: {
         company: true,
         address: true,
         deliveryPartner: true,
         orders: {
+          where: {
+            status: { notIn: [OrderStatus.CANCELLED, OrderStatus.REJECTED] },
+          },
           include: {
             employee: true,
             deliveryPartner: true,
@@ -305,8 +346,10 @@ export class DispatchService {
           },
         },
       },
-      orderBy: { deliveryTime: 'asc' },
+      orderBy: [{ deliveryDate: 'asc' }, { deliveryTime: 'asc' }],
     });
+
+    return rawDrops.filter((d) => d.orders && d.orders.length > 0);
   }
 
   /**
