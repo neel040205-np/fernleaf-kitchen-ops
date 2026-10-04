@@ -220,7 +220,7 @@ Jane Smith,jane@acme.com,false,true,true,,Jain`;
         </div>
 
         {/* Employees Table */}
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-x-auto w-full">
           {isLoading ? (
             <div className="p-8 text-center text-slate-500">Loading employees...</div>
           ) : employees?.length === 0 ? (
@@ -244,7 +244,7 @@ Jane Smith,jane@acme.com,false,true,true,,Jain`;
               </div>
             </div>
           ) : (
-            <table className="w-full text-left text-sm border-collapse">
+            <table className="w-full text-left text-sm border-collapse min-w-[700px]">
               <thead>
                 <tr className="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-500 uppercase tracking-wider">
                   <th className="p-4">Employee</th>

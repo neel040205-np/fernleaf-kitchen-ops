@@ -310,22 +310,22 @@ export default function OrdersPage() {
       <div className="space-y-6">
         <div className="flex flex-col sm:flex-row sm:items-center justify-between gap-4">
           <div>
-            <h1 className="text-2xl font-extrabold text-slate-900">Order Management</h1>
-            <p className="text-sm text-slate-500 mt-1">Place, search, view details, edit, and delete employee meal orders with historical price snapshots.</p>
+            <h1 className="text-xl sm:text-2xl font-extrabold text-slate-900">Order Management</h1>
+            <p className="text-xs sm:text-sm text-slate-500 mt-1">Place, search, view details, edit, and delete employee meal orders with historical price snapshots.</p>
           </div>
 
-          <div className="flex items-center gap-3">
-            <div className="flex items-center gap-2 bg-white border border-slate-200 p-1.5 rounded-lg shadow-sm">
+          <div className="flex flex-col sm:flex-row items-stretch sm:items-center gap-3 w-full sm:w-auto">
+            <div className="flex items-center justify-between sm:justify-start gap-2 bg-white border border-slate-200 p-1.5 rounded-lg shadow-xs w-full sm:w-auto">
               <input
                 type="date"
                 value={cutoffDate}
                 onChange={(e) => setCutoffDate(e.target.value)}
-                className="text-xs p-1 text-slate-700 border-none focus:outline-none"
+                className="text-xs p-1 text-slate-700 border-none focus:outline-hidden bg-transparent flex-1 sm:flex-initial"
               />
               <button
                 onClick={() => triggerCutoffMutation.mutate(cutoffDate)}
                 disabled={triggerCutoffMutation.isPending}
-                className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded transition"
+                className="px-3 py-1.5 bg-amber-600 hover:bg-amber-700 text-white font-bold text-xs rounded transition shrink-0"
               >
                 {triggerCutoffMutation.isPending ? 'Processing...' : 'Run Cut-Off Now'}
               </button>
@@ -336,7 +336,7 @@ export default function OrdersPage() {
                 closeModal();
                 setIsOrderModalOpen(true);
               }}
-              className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm rounded-lg flex items-center gap-2 shadow-sm transition"
+              className="px-4 py-2.5 bg-emerald-600 hover:bg-emerald-700 text-white font-semibold text-sm rounded-lg flex items-center justify-center gap-2 shadow-xs transition w-full sm:w-auto"
             >
               <Plus className="w-4 h-4" /> Place New Order
             </button>
@@ -344,9 +344,9 @@ export default function OrdersPage() {
         </div>
 
         {/* Filters & Search Bar */}
-        <div className="bg-white p-4 rounded-xl border border-slate-200 shadow-sm flex flex-wrap items-center gap-4 text-xs">
+        <div className="bg-white p-3.5 sm:p-4 rounded-xl border border-slate-200 shadow-xs flex flex-col sm:flex-row items-stretch sm:items-center gap-3 text-xs">
           {/* Search Input Bar */}
-          <div className="flex-1 min-w-[260px] relative">
+          <div className="w-full sm:flex-1 relative">
             <Search className="w-4 h-4 text-slate-400 absolute left-3 top-1/2 -translate-y-1/2" />
             <input
               type="text"
@@ -356,7 +356,7 @@ export default function OrdersPage() {
                 setPage(1);
               }}
               placeholder="Search order #, employee name, company, dish..."
-              className="w-full pl-9 pr-8 py-2 rounded-lg border border-slate-300 text-xs focus:ring-2 focus:ring-emerald-500/20 focus:outline-none bg-white"
+              className="w-full pl-9 pr-8 py-2 rounded-lg border border-slate-300 text-xs focus:ring-2 focus:ring-emerald-500/20 focus:outline-hidden bg-white"
             />
             {searchQuery && (
               <button
@@ -371,47 +371,49 @@ export default function OrdersPage() {
             )}
           </div>
 
-          <div className="flex items-center gap-2">
-            <span className="font-semibold text-slate-700 uppercase">Status:</span>
-            <select
-              value={selectedStatus}
-              onChange={(e) => {
-                setSelectedStatus(e.target.value);
-                setPage(1);
-              }}
-              className="px-3 py-2 rounded-lg border border-slate-300 text-xs focus:outline-none bg-white"
-            >
-              <option value="">All Statuses</option>
-              <option value="DRAFT">DRAFT</option>
-              <option value="PLACED">PLACED</option>
-              <option value="CONFIRMED">CONFIRMED</option>
-              <option value="DELIVERED">DELIVERED</option>
-              <option value="CANCELLED">CANCELLED</option>
-            </select>
-          </div>
+          <div className="grid grid-cols-2 sm:flex sm:items-center gap-2.5 w-full sm:w-auto">
+            <div className="flex items-center gap-1.5 w-full">
+              <span className="font-semibold text-slate-700 uppercase shrink-0">Status:</span>
+              <select
+                value={selectedStatus}
+                onChange={(e) => {
+                  setSelectedStatus(e.target.value);
+                  setPage(1);
+                }}
+                className="w-full px-2.5 py-2 rounded-lg border border-slate-300 text-xs focus:outline-hidden bg-white font-medium"
+              >
+                <option value="">All Statuses</option>
+                <option value="DRAFT">DRAFT</option>
+                <option value="PLACED">PLACED</option>
+                <option value="CONFIRMED">CONFIRMED</option>
+                <option value="DELIVERED">DELIVERED</option>
+                <option value="CANCELLED">CANCELLED</option>
+              </select>
+            </div>
 
-          <div className="flex items-center gap-2">
-            <span className="font-semibold text-slate-700 uppercase">Company:</span>
-            <select
-              value={selectedCompanyId}
-              onChange={(e) => {
-                setSelectedCompanyId(e.target.value);
-                setPage(1);
-              }}
-              className="px-3 py-2 rounded-lg border border-slate-300 text-xs focus:outline-none bg-white"
-            >
-              <option value="">All Companies</option>
-              {companies?.map((c: any) => (
-                <option key={c.id} value={c.id}>
-                  {c.name}
-                </option>
-              ))}
-            </select>
+            <div className="flex items-center gap-1.5 w-full">
+              <span className="font-semibold text-slate-700 uppercase shrink-0">Company:</span>
+              <select
+                value={selectedCompanyId}
+                onChange={(e) => {
+                  setSelectedCompanyId(e.target.value);
+                  setPage(1);
+                }}
+                className="w-full px-2.5 py-2 rounded-lg border border-slate-300 text-xs focus:outline-hidden bg-white font-medium"
+              >
+                <option value="">All Companies</option>
+                {companies?.map((c: any) => (
+                  <option key={c.id} value={c.id}>
+                    {c.name}
+                  </option>
+                ))}
+              </select>
+            </div>
           </div>
         </div>
 
         {/* Orders Table */}
-        <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+        <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-x-auto w-full">
           {isLoading ? (
             <div className="p-8 text-center text-slate-500">Loading orders...</div>
           ) : ordersData?.orders?.length === 0 ? (
@@ -421,32 +423,32 @@ export default function OrdersPage() {
               <p className="text-xs text-slate-400">Try adjusting your search or filters.</p>
             </div>
           ) : (
-            <table className="w-full text-left text-sm border-collapse">
+            <table className="w-full text-left text-sm border-collapse min-w-[720px]">
               <thead>
-                <tr className="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-500 uppercase tracking-wider">
-                  <th className="p-4">Order #</th>
-                  <th className="p-4">Employee</th>
-                  <th className="p-4">Company</th>
-                  <th className="p-4">Delivery Date / Time</th>
-                  <th className="p-4">Total</th>
-                  <th className="p-4">Status</th>
-                  <th className="p-4">Invoiced</th>
-                  <th className="p-4">Actions</th>
+                <tr className="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">
+                  <th className="p-3.5 sm:p-4">Order #</th>
+                  <th className="p-3.5 sm:p-4">Employee</th>
+                  <th className="p-3.5 sm:p-4">Company</th>
+                  <th className="p-3.5 sm:p-4">Delivery Date / Time</th>
+                  <th className="p-3.5 sm:p-4">Total</th>
+                  <th className="p-3.5 sm:p-4">Status</th>
+                  <th className="p-3.5 sm:p-4">Invoiced</th>
+                  <th className="p-3.5 sm:p-4">Actions</th>
                 </tr>
               </thead>
-              <tbody className="divide-y divide-slate-100">
+              <tbody className="divide-y divide-slate-100 whitespace-nowrap">
                 {ordersData?.orders?.map((ord: any) => {
                   const editStatus = getOrderEditEligibility(ord);
                   return (
                     <tr key={ord.id} className="hover:bg-slate-50/50 transition">
-                      <td className="p-4 font-mono font-bold text-slate-900">#{ord.orderNumber}</td>
-                      <td className="p-4 font-semibold text-slate-900">{ord.employee?.name}</td>
-                      <td className="p-4 text-slate-700">{ord.employee?.company?.name}</td>
-                      <td className="p-4 text-xs text-slate-600">
+                      <td className="p-3.5 sm:p-4 font-mono font-bold text-slate-900">#{ord.orderNumber}</td>
+                      <td className="p-3.5 sm:p-4 font-semibold text-slate-900">{ord.employee?.name}</td>
+                      <td className="p-3.5 sm:p-4 text-slate-700">{ord.employee?.company?.name}</td>
+                      <td className="p-3.5 sm:p-4 text-xs text-slate-600">
                         {new Date(ord.deliveryDate).toISOString().split('T')[0]} at {formatTime(ord.deliveryTime)}
                       </td>
-                      <td className="p-4 font-bold text-emerald-700">{formatUsd(ord.totalCents)}</td>
-                      <td className="p-4">
+                      <td className="p-3.5 sm:p-4 font-bold text-emerald-700">{formatUsd(ord.totalCents)}</td>
+                      <td className="p-3.5 sm:p-4">
                         <span
                           className={`px-2.5 py-1 text-xs font-bold rounded-full ${
                             ord.status === 'CONFIRMED'
@@ -463,7 +465,7 @@ export default function OrdersPage() {
                           {ord.status}
                         </span>
                       </td>
-                      <td className="p-4">
+                      <td className="p-3.5 sm:p-4">
                         {ord.invoiceId ? (
                           <span className="text-[10px] font-bold text-purple-700 bg-purple-50 px-2 py-0.5 rounded">
                             INVOICED
@@ -472,13 +474,13 @@ export default function OrdersPage() {
                           <span className="text-[10px] font-bold text-slate-400">UNINVOICED</span>
                         )}
                       </td>
-                      <td className="p-4">
-                        <div className="flex items-center gap-2">
+                      <td className="p-3.5 sm:p-4">
+                        <div className="flex items-center gap-1.5">
                           {/* Read / Details */}
                           <button
                             onClick={() => setViewingOrder(ord)}
                             title="View Order Details"
-                            className="p-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold flex items-center gap-1 transition"
+                            className="px-2.5 py-1.5 bg-slate-100 hover:bg-slate-200 text-slate-700 rounded-lg text-xs font-semibold flex items-center gap-1 transition shrink-0"
                           >
                             <Eye className="w-3.5 h-3.5" /> Details
                           </button>
@@ -487,7 +489,7 @@ export default function OrdersPage() {
                           {editStatus.eligible ? (
                             <button
                               onClick={() => handleOpenEditModal(ord)}
-                              className="px-2.5 py-1.5 bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-100 text-xs font-semibold rounded-lg flex items-center gap-1 transition"
+                              className="px-2.5 py-1.5 bg-indigo-50 border border-indigo-200 text-indigo-700 hover:bg-indigo-100 text-xs font-semibold rounded-lg flex items-center gap-1 transition shrink-0"
                             >
                               <Edit2 className="w-3.5 h-3.5" /> Edit {editStatus.isAdminOverride ? '' : `(${editStatus.remainingMins}m)`}
                             </button>
@@ -500,7 +502,7 @@ export default function OrdersPage() {
                             <button
                               onClick={() => setDeletingOrderId(ord.id)}
                               title="Delete Order"
-                              className="p-1.5 bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200 rounded-lg text-xs font-semibold transition"
+                              className="p-1.5 bg-rose-50 text-rose-700 hover:bg-rose-100 border border-rose-200 rounded-lg text-xs font-semibold transition shrink-0"
                             >
                               <Trash2 className="w-3.5 h-3.5" />
                             </button>
@@ -645,12 +647,12 @@ export default function OrdersPage() {
 
         {/* Create / Edit Order Modal */}
         {isOrderModalOpen && (
-          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-4">
-            <div className="bg-white rounded-2xl max-w-4xl w-full p-6 shadow-2xl space-y-4 max-h-[92vh] flex flex-col">
-              <div className="flex items-center justify-between border-b border-slate-100 pb-3">
+          <div className="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 flex items-center justify-center p-2.5 sm:p-4 overflow-y-auto">
+            <div className="bg-white rounded-2xl max-w-4xl w-full p-4 sm:p-6 shadow-2xl space-y-4 max-h-[94vh] flex flex-col my-auto">
+              <div className="flex items-center justify-between border-b border-slate-100 pb-3 shrink-0">
                 <div className="flex items-center gap-2">
-                  <ShoppingBag className="w-5 h-5 text-emerald-600" />
-                  <h3 className="font-bold text-slate-900 text-base">
+                  <ShoppingBag className="w-5 h-5 text-emerald-600 shrink-0" />
+                  <h3 className="font-bold text-slate-900 text-sm sm:text-base leading-tight">
                     {isEditing ? `Edit Order #${ordersData?.orders?.find((o: any) => o.id === editingOrderId)?.orderNumber || ''}` : 'Place Order on Behalf of Employee'}
                   </h3>
                 </div>
@@ -668,14 +670,14 @@ export default function OrdersPage() {
                 )}
 
                 {/* Step 1: Employee & Delivery Logistics */}
-                <div className="bg-slate-50 p-4 rounded-xl border border-slate-200 space-y-3">
+                <div className="bg-slate-50 p-3.5 sm:p-4 rounded-xl border border-slate-200 space-y-3">
                   <p className="font-bold text-slate-900 text-xs flex items-center gap-1.5">
                     <Building2 className="w-4 h-4 text-indigo-600" />
                     Step 1: Select Employee & Delivery Details
                   </p>
 
-                  <div className="grid grid-cols-1 sm:grid-cols-4 gap-3">
-                    <div className="sm:col-span-1">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-3">
+                    <div className="sm:col-span-2 lg:col-span-1">
                       <label className="block font-semibold text-slate-700 mb-1">Customer Employee *</label>
                       <select
                         disabled={isEditing}
@@ -688,7 +690,7 @@ export default function OrdersPage() {
                           setComboQty(1);
                           setOrderLines([]);
                         }}
-                        className="w-full p-2.5 rounded-lg border border-slate-300 text-xs focus:ring-2 focus:ring-emerald-500/20 bg-white disabled:bg-slate-100"
+                        className="w-full p-2.5 rounded-lg border border-slate-300 text-xs focus:ring-2 focus:ring-emerald-500/20 bg-white disabled:bg-slate-100 font-medium"
                       >
                         <option value="">-- Choose Employee --</option>
                         {employees?.map((emp: any) => (
@@ -705,7 +707,7 @@ export default function OrdersPage() {
                         type="date"
                         value={orderDeliveryDate}
                         onChange={(e) => setOrderDeliveryDate(e.target.value)}
-                        className="w-full p-2.5 rounded-lg border border-slate-300 text-xs bg-white"
+                        className="w-full p-2.5 rounded-lg border border-slate-300 text-xs bg-white font-medium"
                       />
                     </div>
 
@@ -716,7 +718,7 @@ export default function OrdersPage() {
                         value={orderDeliveryTime}
                         onChange={(e) => setOrderDeliveryTime(e.target.value)}
                         placeholder="12:30"
-                        className="w-full p-2.5 rounded-lg border border-slate-300 text-xs bg-white"
+                        className="w-full p-2.5 rounded-lg border border-slate-300 text-xs bg-white font-medium"
                       />
                     </div>
 
@@ -755,7 +757,7 @@ export default function OrdersPage() {
                   <div className="space-y-4">
                     <div className="flex items-center justify-between">
                       <p className="font-bold text-slate-900 text-xs flex items-center gap-1.5">
-                        <Utensils className="w-4 h-4 text-emerald-600" />
+                        <Utensils className="w-4 h-4 text-emerald-600 shrink-0" />
                         Step 2: Browse Menu Catalogue ({menuPreview?.employee?.companyName} • {menuPreview?.categories?.reduce((acc: number, c: any) => acc + (c.dishes?.length || 0), 0)} Available Dishes)
                       </p>
                     </div>
@@ -763,14 +765,14 @@ export default function OrdersPage() {
                     {/* Dish Categories Accordion / Grid */}
                     <div className="space-y-4">
                       {menuPreview?.categories?.map((cat: any) => (
-                        <div key={cat.id} className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-sm">
+                        <div key={cat.id} className="border border-slate-200 rounded-xl overflow-hidden bg-white shadow-xs">
                           <div className="bg-slate-100/80 px-4 py-2.5 border-b border-slate-200 flex items-center justify-between">
                             <span className="font-extrabold text-slate-800 text-xs uppercase tracking-wider">
                               {cat.name} ({cat.dishes?.length || 0} items)
                             </span>
                           </div>
 
-                          <div className="p-3 grid grid-cols-1 sm:grid-cols-2 gap-3">
+                          <div className="p-3 grid grid-cols-1 md:grid-cols-2 gap-3">
                             {cat.dishes?.map((dish: any) => {
                               const isSelected = selectedDishId === dish.id;
                               return (
@@ -780,9 +782,9 @@ export default function OrdersPage() {
                                     setSelectedDishId(dish.id);
                                     setSelectedOptionIds([]);
                                   }}
-                                  className={`p-3.5 rounded-xl border transition cursor-pointer flex flex-col justify-between gap-2 ${
+                                  className={`p-3.5 rounded-xl border transition cursor-pointer flex flex-col justify-between gap-2.5 ${
                                     isSelected
-                                      ? 'border-emerald-600 bg-emerald-50/40 shadow-sm ring-2 ring-emerald-500/20'
+                                      ? 'border-emerald-600 bg-emerald-50/40 shadow-xs ring-2 ring-emerald-500/20'
                                       : 'border-slate-200 hover:border-slate-300 bg-white'
                                   }`}
                                 >
@@ -840,10 +842,10 @@ export default function OrdersPage() {
 
                     {/* Dish Option Customizer Block */}
                     {selectedDishId && (
-                      <div className="bg-indigo-50/60 border border-indigo-200 rounded-xl p-4 space-y-3">
+                      <div className="bg-indigo-50/60 border border-indigo-200 rounded-xl p-3.5 sm:p-4 space-y-3">
                         <div className="flex items-center justify-between border-b border-indigo-100 pb-2">
                           <span className="font-bold text-indigo-950 text-xs">Customize Selected Dish Options:</span>
-                          <span className="text-slate-500 text-[11px]">Select protein, grain, dressing, or portions</span>
+                          <span className="text-slate-500 text-[11px] hidden sm:inline">Select protein, grain, dressing, or portions</span>
                         </div>
 
                         {menuPreview?.categories
@@ -870,7 +872,7 @@ export default function OrdersPage() {
                                       }}
                                       className={`px-3 py-1.5 rounded-lg border text-xs font-semibold transition flex items-center gap-1.5 ${
                                         isSelected
-                                          ? 'bg-emerald-600 text-white border-emerald-600 shadow-sm'
+                                          ? 'bg-emerald-600 text-white border-emerald-600 shadow-xs'
                                           : 'bg-white text-slate-700 border-slate-300 hover:border-slate-400'
                                       }`}
                                     >
@@ -883,7 +885,7 @@ export default function OrdersPage() {
                             </div>
                           ))}
 
-                        <div className="flex items-center gap-3 pt-2 border-t border-indigo-100">
+                        <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-2 border-t border-indigo-100">
                           <div className="flex items-center gap-2">
                             <label className="font-semibold text-slate-700 text-xs">Quantity:</label>
                             <input
@@ -898,7 +900,7 @@ export default function OrdersPage() {
                           <button
                             type="button"
                             onClick={addCombinationToOrder}
-                            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg transition shadow-sm flex items-center gap-1.5"
+                            className="px-4 py-2 bg-emerald-600 hover:bg-emerald-700 text-white font-bold text-xs rounded-lg transition shadow-xs flex items-center justify-center gap-1.5 w-full sm:w-auto"
                           >
                             <Plus className="w-4 h-4" /> Add Combination to Cart
                           </button>
@@ -910,19 +912,19 @@ export default function OrdersPage() {
 
                 {/* Step 3: Selected Order Items Summary */}
                 {orderLines.length > 0 && (
-                  <div className="space-y-3 bg-slate-50 p-4 rounded-xl border border-slate-200">
-                    <div className="flex items-center justify-between">
+                  <div className="space-y-3 bg-slate-50 p-3.5 sm:p-4 rounded-xl border border-slate-200">
+                    <div className="flex flex-col sm:flex-row items-start sm:items-center justify-between gap-1">
                       <p className="font-bold text-slate-900 text-xs">
                         Step 3: Order Items Summary ({orderLines.length} item{orderLines.length > 1 ? 's' : ''})
                       </p>
-                      <span className="font-extrabold text-emerald-800 text-sm">
+                      <span className="font-extrabold text-emerald-800 text-xs sm:text-sm">
                         Grand Total: {formatUsd(calculateOrderGrandTotal())}
                       </span>
                     </div>
 
                     <div className="space-y-2">
                       {orderLines.map((line, idx) => (
-                        <div key={idx} className="p-3 bg-white border border-slate-200 rounded-lg text-xs flex items-center justify-between gap-2 shadow-sm">
+                        <div key={idx} className="p-3 bg-white border border-slate-200 rounded-lg text-xs flex items-center justify-between gap-2 shadow-xs">
                           <div>
                             <p className="font-bold text-slate-900">
                               {line.quantity}x {line.dishName}
@@ -952,12 +954,12 @@ export default function OrdersPage() {
               </div>
 
               {/* Modal Footer */}
-              <div className="flex items-center justify-between pt-3 border-t border-slate-100">
+              <div className="flex flex-col sm:flex-row items-stretch sm:items-center justify-between gap-3 pt-3 border-t border-slate-100 shrink-0">
                 <span className="text-xs font-bold text-slate-700">
                   {orderLines.length > 0 && `Total: ${formatUsd(calculateOrderGrandTotal())}`}
                 </span>
-                <div className="flex gap-2">
-                  <button type="button" onClick={closeModal} className="px-4 py-2 text-slate-600 font-semibold text-xs">
+                <div className="flex items-center justify-end gap-2 w-full sm:w-auto">
+                  <button type="button" onClick={closeModal} className="px-4 py-2 text-slate-600 font-semibold text-xs border sm:border-none rounded-lg">
                     Cancel
                   </button>
                   <button
@@ -986,7 +988,7 @@ export default function OrdersPage() {
                         });
                       }
                     }}
-                    className="px-4.5 py-2 bg-emerald-600 text-white font-semibold text-xs rounded-lg hover:bg-emerald-700 disabled:opacity-50 transition shadow-sm"
+                    className="px-4.5 py-2 bg-emerald-600 text-white font-semibold text-xs rounded-lg hover:bg-emerald-700 disabled:opacity-50 transition shadow-xs flex-1 sm:flex-initial text-center justify-center"
                   >
                     {isEditing
                       ? updateOrderMutation.isPending

@@ -398,7 +398,7 @@ export default function CataloguePage() {
               </div>
             </div>
 
-            <div className="bg-white rounded-xl border border-slate-200 shadow-sm overflow-hidden">
+            <div className="bg-white rounded-xl border border-slate-200 shadow-xs overflow-x-auto w-full">
               {dishesLoading ? (
                 <div className="p-8 text-center text-slate-500">Loading dishes...</div>
               ) : filteredDishes.length === 0 ? (
@@ -406,9 +406,9 @@ export default function CataloguePage() {
                   No dishes found matching your current filter criteria.
                 </div>
               ) : (
-                <table className="w-full text-left text-sm border-collapse">
+                <table className="w-full text-left text-sm border-collapse min-w-[720px]">
                   <thead>
-                    <tr className="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-500 uppercase tracking-wider">
+                    <tr className="bg-slate-50 border-b border-slate-200 text-xs font-semibold text-slate-500 uppercase tracking-wider whitespace-nowrap">
                       <th className="p-4">Dish</th>
                       <th className="p-4">SKU</th>
                       <th className="p-4">Category</th>
